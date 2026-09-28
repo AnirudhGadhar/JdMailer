@@ -1433,8 +1433,8 @@
                 <div id="sendStatus" class="send-status"><span id="sendStateInline">Preparing…</span> <span id="sendSubInline"></span></div>
                 <div class="bottom-actions">
                     <div class="spacer"></div>
-                    <button id="sendButton" class="btn primary send-btn" onclick="openSendConfirmation()">
-                        ➤ Send Email to 0 Candidates
+                    <button id="sendButton" class="btn primary send-btn" onclick="sendNow()">
+                        ➤ Test Concurrent Send (0 Candidates)
                     </button>
                 </div>
             </section>
@@ -1586,7 +1586,7 @@
                 document.getElementById("recipientSummarySub").textContent =
                     "Candidate data is taken from the selected rows";
                 document.getElementById("sendButton").textContent =
-                    `➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length === 1 ? "" : "s"}`;
+                    `➤ Test Concurrent Send (${state.candidates.length} Candidate${state.candidates.length === 1 ? "" : "s"})`;
                 populateTemplates();
                 populateCandidates();
                 renderPreview();
@@ -2473,10 +2473,49 @@
             }
 
             function sendNow(){
-                if(state.sendInProgress)return; state.sendInProgress=true;
-                const status=document.getElementById("sendStatus"),stateEl=document.getElementById("sendStateInline"),subEl=document.getElementById("sendSubInline"),sendBtn=document.getElementById("sendButton");
-                if(status)status.classList.add("show"); if(stateEl)stateEl.textContent="Preparing…"; if(subEl)subEl.textContent=""; if(sendBtn){sendBtn.disabled=true;sendBtn.textContent="Sending…";}
-                const t=JSON.parse(JSON.stringify(currentTemplateText()));
+                if(state.sendInProgress)return;
+                syncPreviewDraft();
+                if(!state.candidates.length)return toast("No recipients selected");
+                if(!isReady())return toast("Please resolve the highlighted token/data issues first");
+
+                state.sendInProgress=true;
+
+                const status=document.getElementById("sendStatus"),
+                    stateEl=document.getElementById("sendStateInline"),
+                    subEl=document.getElementById("sendSubInline"),
+                    sendBtn=document.getElementById("sendButton");
+
+                if(status)status.classList.add("show");
+                if(stateEl)stateEl.textContent="Starting concurrent test…";
+                if(subEl)subEl.textContent="Sending the exact payload concurrently with fetchAll().";
+                if(sendBtn){
+                    sendBtn.disabled=true;
+                    sendBtn.textContent="Testing concurrently…";
+                }
+
+                const template=JSON.parse(JSON.stringify(currentTemplateText()));
+                const jd=getInitialResolvedJDForSend_();
+
+                /*
+                 * IMPORTANT:
+                 * The browser sends only the normal internal preparation data.
+                 * Code.gs converts the prepared email into the EXACT outbound
+                 * Notification/AWS payload:
+                 *
+                 * candidate_name
+                 * candidate_email
+                 * role
+                 * role_id
+                 * customer
+                 * ta_name
+                 * ta_email
+                 * cc
+                 * subject
+                 * body
+                 * jd_filename
+                 *
+                 * No debug/user/session fields are sent to the Notification API.
+                 */
                 const overrides={
                     role:state.role,
                     customer:state.customer,
@@ -2484,18 +2523,53 @@
                     roleEdited:!!state.contextEdited.role,
                     roleIdEdited:!!state.contextEdited.roleId,
                     customerEdited:!!state.contextEdited.customer,
-                    // If a custom JD was uploaded, use that. Otherwise send the
-                    // EXACT JD that was resolved before this dialog opened.
-                    // This prevents edited Role / Role ID values from causing a
-                    // second SharePoint lookup or changing the attachment.
-                    jdFileName:state.uploadedJd?state.uploadedJd.name:state.jdFileName,
-                    jd:state.uploadedJd || getInitialResolvedJDForSend_()
+                    jdFileName:state.uploadedJd
+                        ? state.uploadedJd.name
+                        : state.jdFileName,
+                    jd:state.uploadedJd || jd
                 };
-                if(stateEl)stateEl.textContent="Sending…";
-                google.script.run.withSuccessHandler(finishSend).withFailureHandler(e=>failSend(e.message||String(e))).sendBatchEmail({template:t,overrides:overrides,draft:state.emailDraft||null});
+
+                google.script.run
+                    .withSuccessHandler(finishPayloadTest)
+                    .withFailureHandler(function(e){
+                        failSend(e && e.message ? e.message : String(e));
+                    })
+                    .testConcurrentExactPayloadsFromDialog({
+                        template:template,
+                        overrides:overrides,
+                        draft:state.emailDraft || null
+                    });
             }
-            function failSend(msg){state.sendInProgress=false;const status=document.getElementById("sendStatus"),s=document.getElementById("sendStateInline"),sub=document.getElementById("sendSubInline"),b=document.getElementById("sendButton");if(status)status.classList.add("show");if(s)s.textContent="Send failed";if(sub)sub.textContent=msg;if(b){b.disabled=false;b.textContent=`➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length===1?"":"s"}`;}toast(msg);}
-            function finishSend(result){state.sendInProgress=false;const sent=result?.sent||result?.successful||0,failed=result?.failed||0,s=document.getElementById("sendStateInline"),sub=document.getElementById("sendSubInline"),b=document.getElementById("sendButton");if(s)s.textContent=failed?"Send completed with failures":"✓ Send completed";if(sub)sub.textContent=`${sent} sent · ${failed} failed`;if(b){b.disabled=false;b.textContent=`➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length===1?"":"s"}`;}toast(failed?`${sent} sent · ${failed} failed`:`${sent} emails sent`);}
+
+            function failSend(msg){
+                state.sendInProgress=false;
+                const status=document.getElementById("sendStatus"),
+                    s=document.getElementById("sendStateInline"),
+                    sub=document.getElementById("sendSubInline"),
+                    b=document.getElementById("sendButton");
+                if(status)status.classList.add("show");
+                if(s)s.textContent="Concurrent payload test failed";
+                if(sub)sub.textContent=msg;
+                if(b){
+                    b.disabled=false;
+                    b.textContent=`➤ Test Concurrent Send (${state.candidates.length} Candidate${state.candidates.length===1?"":"s"})`;
+                }
+                toast(msg);
+            }
+
+            function finishPayloadTest(result){
+                state.sendInProgress=false;
+                const s=document.getElementById("sendStateInline"),
+                    sub=document.getElementById("sendSubInline"),
+                    b=document.getElementById("sendButton");
+                if(s)s.textContent="✓ Concurrent test completed";
+                if(sub)sub.textContent=(result && result.executionId ? "Execution ID: "+result.executionId+" · " : "")+"No email was sent.";
+                if(b){
+                    b.disabled=false;
+                    b.textContent=`➤ Test Concurrent Send (${state.candidates.length} Candidate${state.candidates.length===1?"":"s"})`;
+                }
+                toast("Concurrent exact payload test completed. Open Apps Script → Executions.");
+            }
 
             /* ================================================================
              * BOOTSTRAP
