@@ -1,0 +1,2715 @@
+
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Tribera JD Mailer</title>
+        <style>
+            :root {
+                --red: #da0007;
+                --red-h: #b90006;
+                --ink: #101828;
+                --text: #344054;
+                --muted: #667085;
+                --border: #e4e7ec;
+                --soft: #eaecf0;
+                --bg: #f7f8fa;
+                --ready-bg: #ecfdf3;
+                --ready-fg: #027a48;
+                --ready-bd: #a6f4c5;
+                --warn-bg: #fffaeb;
+                --warn-fg: #b54708;
+                --warn-bd: #fedf89;
+                --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+                --shadow: 0 4px 14px rgba(16, 24, 40, 0.06);
+                --shadow-lg: 0 24px 60px rgba(16, 24, 40, 0.2);
+            }
+            * {
+                box-sizing: border-box;
+            }
+            html,
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--ink);
+                font-family:
+                    Inter,
+                    -apple-system,
+                    "Segoe UI",
+                    Roboto,
+                    Arial,
+                    sans-serif;
+                font-size: 14px;
+                line-height: 1.5;
+                -webkit-font-smoothing: antialiased;
+            }
+            button,
+            input,
+            select,
+            textarea {
+                font: inherit;
+                color: inherit;
+            }
+            button {
+                cursor: pointer;
+                border: 0;
+                background: none;
+            }
+            button:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+            }
+
+            .app {
+                width: min(1200px, calc(100vw - 32px));
+                margin: 20px auto 40px;
+            }
+            .card {
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                box-shadow: var(--shadow-sm);
+            }
+
+            /* ---------- Buttons ---------- */
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 36px;
+                padding: 0 14px;
+                border: 1px solid var(--border);
+                background: #fff;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--ink);
+                white-space: nowrap;
+                transition:
+                    background 0.12s,
+                    border-color 0.12s;
+            }
+            .btn:hover {
+                background: #f9fafb;
+                border-color: #d0d5dd;
+            }
+            .btn:focus-visible {
+                outline: 2px solid var(--red);
+                outline-offset: 1px;
+            }
+            .btn.primary {
+                background: var(--red);
+                border-color: var(--red);
+                color: #fff;
+            }
+            .btn.primary:hover {
+                background: var(--red-h);
+                border-color: var(--red-h);
+            }
+            .btn.sm {
+                height: 32px;
+                padding: 0 11px;
+                font-size: 12.5px;
+            }
+            .icon-btn {
+                display: inline-grid;
+                place-items: center;
+                width: 28px;
+                height: 28px;
+                border-radius: 6px;
+                color: var(--muted);
+                transition:
+                    background 0.12s,
+                    color 0.12s;
+            }
+            .icon-btn:hover {
+                background: var(--soft);
+                color: var(--ink);
+            }
+            .icon-btn svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            /* ---------- Header ---------- */
+            .header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 16px 20px;
+            }
+            .brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 0;
+            }
+            .logo {
+                width: 44px;
+                height: 44px;
+                border-radius: 8px;
+                background: #111;
+                overflow: hidden;
+                display: grid;
+                place-items: center;
+                flex-shrink: 0;
+            }
+            .logo img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+            .title {
+                font-size: 22px;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+                line-height: 1.15;
+            }
+            .subtitle {
+                font-size: 12.5px;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+            .header-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+            .role-label {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text);
+            }
+            .role-id-value {
+                display: inline-block;
+                padding: 6px 10px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: #f8fafc;
+                color: var(--text);
+                font-weight: 700;
+                font-size: 13px;
+                font-family: ui-monospace, Menlo, Consolas, monospace;
+            }
+
+            /* ---------- Context Row ---------- */
+            .context {
+                margin-top: 14px;
+                display: grid;
+                grid-template-columns: 1.1fr 1fr 1.15fr;
+            }
+            .ctx {
+                padding: 14px 20px;
+                min-width: 0;
+                border-right: 1px solid var(--soft);
+            }
+            .ctx:last-child {
+                border-right: 0;
+            }
+            .ctx-label {
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--muted);
+                margin-bottom: 6px;
+            }
+            .ctx-value {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                min-width: 0;
+            }
+            .ctx-value .txt {
+                font-size: 14.5px;
+                font-weight: 700;
+                color: var(--ink);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                flex: 1;
+            }
+            .inline-edit-input { width:100%; height:34px; border:1px solid var(--red); border-radius:7px; padding:0 10px; font-size:14px; font-weight:600; outline:none; box-shadow:0 0 0 3px rgba(218,0,7,.08); background:#fff; }
+            .inline-edit-wrap { display:flex; align-items:center; gap:6px; width:100%; }
+            .inline-edit-wrap .inline-edit-input { flex:1; min-width:0; }
+            .inline-save-btn, .inline-cancel-btn { height:32px; padding:0 10px; border-radius:7px; font-size:12px; font-weight:700; border:1px solid var(--border); background:#fff; white-space:nowrap; }
+            .inline-save-btn { border-color:var(--red); background:var(--red); color:#fff; }
+            .inline-save-btn:hover { background:var(--red-dark, #b80000); }
+            .inline-cancel-btn { color:var(--muted); }
+            .inline-cancel-btn:hover { background:#f7f8fa; color:var(--text); }
+
+            .jd-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                min-width: 0;
+            }
+            .jd-info {
+                flex: 1;
+                min-width: 0;
+            }
+            .jd-name {
+                font-size: 14.5px;
+                font-weight: 700;
+                color: var(--ink);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .jd-meta {
+                font-size: 11.5px;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+
+            /* ---------- Template Bar ---------- */
+            .tpl-bar {
+                margin-top: 14px;
+                padding: 12px 20px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+            .tpl-bar .label {
+                font-size: 13.5px;
+                font-weight: 700;
+                color: var(--ink);
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            .tpl-select {
+                height: 36px;
+                min-width: 260px;
+                padding: 0 32px 0 12px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: #fff
+                    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+                    no-repeat right 11px center;
+                font-size: 13.5px;
+                font-weight: 600;
+                appearance: none;
+                transition:
+                    border-color 0.12s,
+                    box-shadow 0.12s;
+            }
+            .tpl-select:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+            .tpl-hint {
+                flex: 1;
+                font-size: 12px;
+                color: var(--muted);
+                min-width: 180px;
+            }
+            .ready-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                height: 30px;
+                padding: 0 11px;
+                border-radius: 8px;
+                font-size: 12px;
+                font-weight: 700;
+                border: 1px solid var(--ready-bd);
+                background: var(--ready-bg);
+                color: var(--ready-fg);
+            }
+            .ready-badge.warn {
+                border-color: var(--warn-bd);
+                background: var(--warn-bg);
+                color: var(--warn-fg);
+            }
+
+            /* ---------- Recipients ---------- */
+            .rec-card {
+                margin-top: 14px;
+                padding: 14px 20px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+            .rec-badge {
+                width: 42px;
+                height: 42px;
+                border-radius: 10px;
+                background: #feeaec;
+                color: var(--red);
+                display: grid;
+                place-items: center;
+                font-weight: 800;
+                font-size: 15px;
+                flex-shrink: 0;
+            }
+            .rec-text {
+                min-width: 0;
+                flex: 1;
+            }
+            .rec-text b {
+                font-size: 14px;
+                font-weight: 700;
+                display: block;
+            }
+            .rec-text span {
+                font-size: 12.5px;
+                color: var(--muted);
+                display: block;
+                margin-top: 2px;
+            }
+
+            /* ---------- Email Section ---------- */
+            .email-card {
+                margin-top: 14px;
+                padding: 20px;
+            }
+            .email-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 16px;
+                padding-bottom: 14px;
+                border-bottom: 1px solid var(--soft);
+            }
+            .email-head h2 {
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: -0.01em;
+                margin: 0;
+            }
+            .email-head .desc {
+                font-size: 12.5px;
+                color: var(--muted);
+                margin-top: 4px;
+            }
+            .email-actions {
+                display: flex;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+
+            .cand-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 14px 14px;
+                background: #fafbfc;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                margin-top: 16px;
+            }
+            .cand-row label {
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                flex-shrink: 0;
+            }
+            .cand-select {
+                flex: 1;
+                min-width: 0;
+                height: 36px;
+                padding: 0 32px 0 12px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: #fff
+                    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+                    no-repeat right 11px center;
+                font-size: 13.5px;
+                font-weight: 600;
+                appearance: none;
+            }
+            .cand-select:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+            .cand-count {
+                font-size: 12.5px;
+                color: var(--muted);
+                font-weight: 600;
+                flex-shrink: 0;
+            }
+
+            .email-meta {
+                margin-top: 16px;
+                padding: 14px 16px;
+                background: #fafbfc;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+            }
+            .meta-row {
+                display: grid;
+                grid-template-columns: 70px 1fr;
+                align-items: center;
+                gap: 12px;
+                margin: 8px 0;
+            }
+            .meta-row:first-child {
+                margin-top: 0;
+            }
+            .meta-row:last-child {
+                margin-bottom: 0;
+            }
+            .meta-row b {
+                font-size: 12.5px;
+                font-weight: 700;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            .meta-row .val {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--ink);
+                padding: 6px 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .cc-wrap {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            .meta-input {
+                flex: 1;
+                min-width: 0;
+                height: 34px;
+                padding: 0 11px;
+                border: 1px solid var(--border);
+                border-radius: 7px;
+                background: #fff;
+                font-size: 13.5px;
+                font-weight: 500;
+                transition:
+                    border-color 0.12s,
+                    box-shadow 0.12s;
+            }
+            .meta-input:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+
+            .email-body {
+                margin-top: 16px;
+                min-height: 280px;
+                max-height: 420px;
+                overflow: auto;
+                padding: 18px 20px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: #fff;
+                font-size: 15.5px;
+                line-height: 1.7;
+                color: var(--text);
+                white-space: pre-wrap;
+            }
+            .email-body:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+
+            .bottom-actions {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-top: 18px;
+                padding-top: 16px;
+                border-top: 1px solid var(--soft);
+            }
+            .bottom-actions .spacer {
+                flex: 1;
+            }
+            .send-btn {
+                height: 42px;
+                padding: 0 22px;
+                font-size: 14px;
+                font-weight: 700;
+                border-radius: 9px;
+                box-shadow: 0 4px 12px rgba(218, 0, 7, 0.22);
+            }
+            .send-btn:hover {
+                box-shadow: 0 6px 18px rgba(218, 0, 7, 0.32);
+            }
+
+            .send-status{display:none;margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fafbfc;font-size:12.5px;color:var(--muted);}
+            .send-status.show{display:block;}
+
+            .template-editor-inline {
+                margin-top: 14px;
+                padding: 0;
+                overflow: hidden;
+                border: 1px solid #dfe3e8;
+                box-shadow: 0 10px 30px rgba(16,24,40,.08);
+                scroll-margin-top: 12px;
+                background:#fff;
+            }
+            .template-editor-topbar {
+                display:flex; align-items:center; justify-content:space-between; gap:16px;
+                padding:16px 20px; background:linear-gradient(180deg,#fff,#fafbfc);
+                border-bottom:1px solid var(--soft);
+            }
+            .template-editor-title-row {display:flex;align-items:center;gap:10px;}
+            .template-editor-icon {
+                width:34px;height:34px;border-radius:9px;display:grid;place-items:center;
+                background:rgba(218,0,7,.08);color:var(--red);font-size:16px;font-weight:800;
+            }
+            .template-editor-mode {
+                display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;
+                background:#f2f4f7;color:#475467;font-size:10.5px;font-weight:700;
+                text-transform:uppercase;letter-spacing:.04em;
+            }
+            .template-editor-content {padding:18px 20px 20px;}
+            .template-section {
+                border:1px solid #eaecf0;border-radius:10px;padding:14px 15px;background:#fff;
+                margin-bottom:14px;
+            }
+            .template-section-title {font-size:11px;font-weight:800;color:#344054;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+            .template-section-sub {font-size:11.5px;color:#667085;margin:-6px 0 12px;}
+            .template-footer {
+                display:flex;align-items:center;justify-content:space-between;gap:12px;
+                padding:12px 20px;border-top:1px solid var(--soft);background:#fafbfc;
+                position:sticky;bottom:0;z-index:2;
+            }
+            .template-save-state {font-size:12px;color:#667085;}
+            .template-save-state.dirty {color:#b42318;font-weight:700;}
+            .template-save-state.saved {color:#027a48;font-weight:700;}
+            .template-editor-inline .field { margin-bottom: 0; }
+            .template-editor-inline .field-label { margin-bottom: 6px; }
+            .template-editor-inline.is-open {
+                display: block !important;
+            }
+            .template-editor-inline .field { margin-bottom: 14px; }
+            .template-editor-inline .field-label { margin-bottom: 6px; }
+            .template-editor-inline .template-preview-grid { align-items: stretch; }
+            .template-editor-head {
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:16px;
+                padding-bottom:14px;
+                margin-bottom:16px;
+                border-bottom:1px solid var(--soft);
+            }
+            .template-editor-title {
+                font-size:16px;
+                font-weight:800;
+                color:var(--ink);
+            }
+            .template-editor-sub {
+                margin-top:3px;
+                font-size:12.5px;
+                color:var(--muted);
+            }
+            .template-editor-actions {
+                display:flex;
+                align-items:center;
+                gap:8px;
+                flex-shrink:0;
+            }
+            .template-editor-grid {
+                display:grid;
+                grid-template-columns:1fr 1fr;
+                gap:14px 16px;
+            }
+            .template-body-editor {
+                min-height:240px;
+            }
+            .template-token-box {
+                margin-top:4px;
+            }
+            .template-preview-grid {
+                display:grid;
+                grid-template-columns:minmax(220px, .35fr) minmax(0, 1fr);
+                gap:16px;
+                margin-top:16px;
+            }
+            .template-live-preview {
+                min-height:140px;
+            }
+            .danger-outline {
+                color:#b42318;
+                border-color:#f0b7b2;
+                background:#fff;
+            }
+            .danger-outline:hover {
+                background:#fff5f5;
+                border-color:#d92d20;
+            }
+            .inline-edit-wrap {
+                display:flex;
+                align-items:center;
+                gap:7px;
+                width:100%;
+            }
+            .inline-edit-input {
+                min-width:0;
+                flex:1;
+                height:34px;
+                padding:0 9px;
+                border:1px solid var(--red);
+                border-radius:7px;
+                font-size:13.5px;
+                font-weight:600;
+                outline:none;
+                box-shadow:0 0 0 3px rgba(218,0,7,.08);
+            }
+            .inline-save-btn,.inline-cancel-btn {
+                height:32px;
+                padding:0 10px;
+                border-radius:7px;
+                border:1px solid var(--border);
+                background:#fff;
+                font-size:12px;
+                font-weight:700;
+                cursor:pointer;
+            }
+            .inline-save-btn {
+                color:#fff;
+                background:var(--red);
+                border-color:var(--red);
+            }
+            .inline-cancel-btn {
+                color:var(--muted);
+            }
+
+            /* ---------- Modal ---------- */
+            .modal {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(16, 24, 40, 0.55);
+                z-index: 100;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+            }
+            .modal.open {
+                display: flex;
+            }
+            .dialog {
+                width: min(980px, 94vw);
+                max-height: 92vh;
+                overflow: hidden;
+                background: #fff;
+                border-radius: 14px;
+                box-shadow: var(--shadow-lg);
+                display: flex;
+                flex-direction: column;
+            }
+            .dialog.wide {
+                width: min(1180px, 96vw);
+            }
+            .dialog-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 18px 24px;
+                border-bottom: 1px solid var(--soft);
+                flex-shrink: 0;
+            }
+            .dialog-head h2 {
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: -0.01em;
+                margin: 0;
+            }
+            .close {
+                display: grid;
+                place-items: center;
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                font-size: 22px;
+                color: var(--muted);
+                line-height: 1;
+            }
+            .close:hover {
+                background: var(--soft);
+                color: var(--ink);
+            }
+            .dialog-body {
+                padding: 22px 24px;
+                overflow: auto;
+                flex: 1;
+            }
+            .dialog-foot {
+                padding: 14px 24px;
+                border-top: 1px solid var(--soft);
+                background: #fafbfc;
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                flex-shrink: 0;
+                border-radius: 0 0 14px 14px;
+            }
+
+            .intro {
+                padding: 12px 14px;
+                background: #fff5f5;
+                border: 1px solid #f3c8cb;
+                border-radius: 10px;
+                margin-bottom: 18px;
+            }
+            .intro b {
+                font-size: 13px;
+                font-weight: 700;
+                display: block;
+                color: var(--ink);
+            }
+            .intro div {
+                font-size: 12.5px;
+                color: var(--muted);
+                margin-top: 3px;
+                line-height: 1.5;
+            }
+
+            .field {
+                margin-bottom: 16px;
+            }
+            .field-label {
+                display: block;
+                font-size: 13.5px;
+                font-weight: 700;
+                color: var(--text);
+                margin-bottom: 7px;
+            }
+            .field-input,
+            .field-textarea,
+            .field-select {
+                width: 100%;
+                height: 40px;
+                padding: 0 12px;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                background: #fff;
+                font-size: 14px;
+                transition:
+                    border-color 0.12s,
+                    box-shadow 0.12s;
+            }
+            .field-input:focus,
+            .field-textarea:focus,
+            .field-select:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+            .field-textarea {
+                height: auto;
+                min-height: 300px;
+                padding: 14px;
+                font-family: ui-monospace, Menlo, Consolas, monospace;
+                font-size: 13px;
+                line-height: 1.65;
+                resize: vertical;
+            }
+            .field-select {
+                appearance: none;
+                padding-right: 32px;
+                background: #fff
+                    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+                    no-repeat right 12px center;
+            }
+
+            .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+            }
+
+            .tokens {
+                margin-top: 16px;
+                padding: 16px;
+                border: 1px solid var(--soft);
+                border-radius: 10px;
+                background: #fafbfc;
+            }
+            .tokens-title {
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--text);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                margin-bottom: 10px;
+            }
+            .tokens-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 7px;
+            }
+            .token {
+                padding: 6px 11px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: #fff;
+                font-size: 12.5px;
+                font-weight: 600;
+                color: var(--text);
+                font-family: ui-monospace, Menlo, Consolas, monospace;
+                transition:
+                    border-color 0.12s,
+                    background 0.12s,
+                    color 0.12s;
+            }
+            .token:hover {
+                border-color: var(--red);
+                background: #fff5f5;
+                color: var(--red);
+            }
+
+            .custom-row {
+                display: grid;
+                grid-template-columns: 200px 1fr auto;
+                gap: 10px;
+                margin-top: 8px;
+            }
+            .custom-row input {
+                height: 38px;
+                padding: 0 11px;
+                border: 1px solid var(--border);
+                border-radius: 7px;
+                font-size: 13px;
+                background: #fff;
+            }
+            .custom-row input:focus {
+                outline: none;
+                border-color: var(--red);
+                box-shadow: 0 0 0 3px rgba(218, 0, 7, 0.08);
+            }
+
+            /* Recipients list */
+            .rec-list {
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                max-height: 440px;
+                overflow: auto;
+            }
+            .rec-row {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 14px;
+                border-bottom: 1px solid var(--soft);
+                cursor: pointer;
+            }
+            .rec-row:last-child {
+                border-bottom: 0;
+            }
+            .rec-row:hover {
+                background: #fafbfc;
+            }
+            .rec-row input {
+                width: 16px;
+                height: 16px;
+                accent-color: var(--red);
+                cursor: pointer;
+            }
+            .avatar {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: #f2f4f7;
+                display: grid;
+                place-items: center;
+                font-size: 11px;
+                font-weight: 800;
+                color: var(--text);
+                flex-shrink: 0;
+            }
+            .rec-info {
+                flex: 1;
+                min-width: 0;
+            }
+            .rec-info b {
+                display: block;
+                font-size: 13px;
+                font-weight: 700;
+            }
+            .rec-info span {
+                display: block;
+                font-size: 11.5px;
+                color: var(--muted);
+                margin-top: 1px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .rec-status {
+                font-size: 11px;
+                font-weight: 700;
+                padding: 3px 8px;
+                border-radius: 6px;
+            }
+            .rec-status.ok {
+                background: var(--ready-bg);
+                color: var(--ready-fg);
+            }
+            .rec-status.bad {
+                background: #feeaec;
+                color: var(--red);
+            }
+
+            /* Preview box */
+            .preview-box {
+                padding: 16px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: #fafbfc;
+            }
+            .preview-box small {
+                display: block;
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }
+            .preview-box .cand-name {
+                font-size: 14px;
+                font-weight: 700;
+                margin-top: 4px;
+            }
+            .preview-box .subj-row {
+                margin-top: 14px;
+                padding: 10px 12px;
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-size: 13.5px;
+                font-weight: 600;
+            }
+            .preview-body {
+                margin-top: 12px;
+                padding: 16px;
+                background: #fff;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                font-size: 14.5px;
+                line-height: 1.7;
+                color: var(--text);
+                white-space: pre-wrap;
+                max-height: 400px;
+                overflow: auto;
+            }
+
+            /* Summary cards */
+            .summary-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 12px;
+                margin-top: 16px;
+            }
+            .summary-card {
+                padding: 12px 14px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                background: #fafbfc;
+            }
+            .summary-card small {
+                display: block;
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }
+            .summary-card b {
+                display: block;
+                font-size: 20px;
+                margin-top: 6px;
+                font-weight: 800;
+                letter-spacing: -0.02em;
+            }
+
+            /* Progress + log */
+            .progress {
+                height: 6px;
+                background: var(--soft);
+                border-radius: 99px;
+                overflow: hidden;
+                margin-top: 16px;
+            }
+            .progress > div {
+                height: 100%;
+                background: var(--red);
+                width: 0;
+                transition: width 0.3s;
+            }
+            .log {
+                margin-top: 12px;
+                border: 1px solid var(--border);
+                border-radius: 10px;
+                max-height: 300px;
+                overflow: auto;
+            }
+            .log-row {
+                display: grid;
+                grid-template-columns: 1fr 110px 90px;
+                gap: 12px;
+                padding: 11px 14px;
+                border-bottom: 1px solid var(--soft);
+                font-size: 12.5px;
+                align-items: center;
+            }
+            .log-row:last-child {
+                border-bottom: 0;
+            }
+            .log-name {
+                font-weight: 600;
+                color: var(--ink);
+            }
+            .log-email {
+                font-size: 11.5px;
+                color: var(--muted);
+                margin-top: 2px;
+            }
+            .log-code {
+                font-family: ui-monospace, Menlo, Consolas, monospace;
+                font-size: 12px;
+                color: var(--muted);
+            }
+            .log-status {
+                text-align: right;
+                font-weight: 800;
+                font-size: 11.5px;
+            }
+            .ok {
+                color: var(--ready-fg);
+            }
+            .bad {
+                color: var(--red);
+            }
+
+            /* Toast */
+            .toast {
+                position: fixed;
+                right: 22px;
+                bottom: 22px;
+                background: #101828;
+                color: #fff;
+                padding: 12px 16px;
+                border-radius: 10px;
+                font-size: 13px;
+                font-weight: 600;
+                opacity: 0;
+                transform: translateY(10px);
+                transition: 0.22s;
+                z-index: 200;
+                box-shadow: var(--shadow-lg);
+                max-width: 400px;
+            }
+            .toast.show {
+                opacity: 1;
+                transform: none;
+            }
+
+            /* Responsive */
+            @media (max-width: 820px) {
+                .context {
+                    grid-template-columns: 1fr;
+                }
+                .ctx {
+                    border-right: 0;
+                    border-bottom: 1px solid var(--soft);
+                }
+                .ctx:last-child {
+                    border-bottom: 0;
+                }
+                .tpl-bar {
+                    flex-direction: column;
+                    align-items: stretch;
+                }
+                .tpl-select {
+                    min-width: 0;
+                    width: 100%;
+                }
+                .email-head {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+                .summary-grid {
+                    grid-template-columns: 1fr 1fr;
+                }
+                .grid-2 {
+                    grid-template-columns: 1fr;
+                }
+                .template-editor-grid,
+                .template-preview-grid {
+                    grid-template-columns: 1fr;
+                }
+                .template-editor-head {
+                    align-items:flex-start;
+                    flex-direction:column;
+                }
+                .template-editor-actions {
+                    width:100%;
+                    justify-content:flex-end;
+                }
+                .custom-row {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="app">
+            <!-- ============ HEADER ============ -->
+            <header class="card header">
+                <div class="brand">
+                    <div class="logo">
+                        <img
+                            src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAIAAAD9b0jDAAAES0lEQVR4AZyVSW9cRRDHq6r7vVnejGfxMouNsUmUQxYlyiESIiJIcOPzcUEcIpA4I0XiK3BAQiwCDoCDSEhEpPEy9izvdXcV1TYeM9YLiWj953W96epfV9V099DWUhtubw3f3Oy/NehfHWxcHaztbnbf2uxe77Vvr7fvrLZurK1u94b94Xavv3WhwbAX1e8N+r3hhopguTGAIAQCxigEIAFPUBiYW8hNHFqeUfJ2GaouilCoPpVuOUJzC4epjOt0UoGAIKxLq+NLVQIVFs/sg08YGgVkRZw8wzBNQOXxFUT1LoGSEAVGz37/eGU035jhbm/TsfOGPeqAzioRCixUAkVEC9S21Vu97QeDa/e6W62cbcFGQ4yJawf/3UqgOiFFqk789fr6/c7O3cr66owbuW94ScMpWivwb+kEWFqpHKpB+fEkc34N88Z83Cx8s5Bmwapq4CTETBV1ni+roa8LXYLqqyqOpqmd+YPjfI/ts8O/Hm/V6l0Hfag2Z9IiW8ymaDABSAUMkjaDaoABUhGUtbiZahUhT3RS5ZNbaxt3O8O3m8N3msMHazvXKt0VStn7s6malurMPnuWQ3XnOwJ92gDtOdxKO/ewc587D3znPVm/mVfbHoywMxyIE+ZYazkDxmc5NI6cfwR5HvIzTdkdu6mppiZJ0jQ9d7ncl0KJmNIAhqGwsF+D7+Tw4ePvPzv66ZPRt5/u//jo4JdRhXPgVFDlEswTZMJFK4UCQiTqqdciTFIY1eHPFfitJXsdeNyW55mcJKDFMRwPsR5cb+KNsQiYpLSxJh0HAkiBooEoRQ/+uArHKehhLUgk+gSRoD7aLYhqlEcKyEwaCleC7kr1sQJQgHFEBXIA1iQQYrARIdFTjYUoXjuawLJExONcYJblrjWTrMhMUTOukh/nhikJUHHeeq/0AN5yXBsksN5fGg6gRrFY4MLQpXWvhNNBpRi2Vn8IRrUrLqgSBt1SGqt6qhcKgeoccFobLc8lMTvAGZmjJBknBigYKBD0MvRN5/X4muBERIsAQF6IRXmktnYqtfR5WYx6mGxOVvckg23nfn3mWvO8nUt7ljfz/CzMSBGrDo6s4AWkHKoVnpJ5MZlPptKF5h3MPmh0dsdux8EVsVfqmQ3OViyAZm29qTJWWe1zbDlUkHLCA4EXxkBrpcbudrPz/mDnwzeuvbu1e2Njo5vVkFAhgiZAGlDjvUBdWOqxkI/1s09D8ZU7/AbH+yZvpXQTs9vQ2KFKl4yFwOwxgo2A9XqtvzJSpaNJDjl8Pdp/tLf3A7ufff48yNPp/Nej4yeT6XgeCqd7KMakARAwROm8qPht7Jc/JAROjK27xurvafOLg8nDg6OPXjz7ePTs8/Hoy9HoENMgFf0TDFhYniXh5JT7D6UcqoPICGILSsdJ/Xkte1LP/mjUVE+yyqhazSlFiEefo59uBv9aUHittpT1YsZLI114/A/jbwAAAP//2L20jQAAAAZJREFUAwCNclBXsZAgtQAAAABJRU5ErkJggg=="
+                            alt="Tribera"
+                        />
+                    </div>
+                    <div>
+                        <div class="title">JD Mailer</div>
+                        <div class="subtitle">Fast, repeatable personalized JD delivery</div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <span class="role-label">Role ID:</span>
+                    <span id="roleIdTop" class="role-id-value">—</span>
+                    <button class="icon-btn" title="Edit Role ID" onclick="startInlineEdit('roleId')">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2.2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ============ ROLE / CUSTOMER / JD ============ -->
+            <section class="card context">
+                <div class="ctx">
+                    <div class="ctx-label">Role</div>
+                    <div class="ctx-value">
+                        <span id="roleValue" class="txt">—</span>
+                        <button class="icon-btn" title="Edit Role" onclick="startInlineEdit('role')">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="ctx">
+                    <div class="ctx-label">Customer</div>
+                    <div class="ctx-value">
+                        <span id="customerValue" class="txt">—</span>
+                        <button class="icon-btn" title="Edit Customer" onclick="startInlineEdit('customer')">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="ctx">
+                    <div class="ctx-label">JD File</div>
+                    <div class="jd-row">
+                        <div class="jd-info">
+                            <div id="primaryFileName" class="jd-name">Loading…</div>
+                            <div id="primaryFileMeta" class="jd-meta">From role context / sheet</div>
+                        </div>
+                        <button class="btn sm" onclick="openAddJd()">+ Add file</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ TEMPLATE BAR ============ -->
+            <section class="card tpl-bar">
+                <div class="label">
+                    <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M4 4h16v6H4z" />
+                        <path d="M4 14h10v6H4z" />
+                        <path d="M18 14h2v6h-2z" />
+                    </svg>
+                    Template
+                </div>
+                <select id="templateSelect" class="tpl-select" onchange="changeTemplate(this.value)"></select>
+                <button class="btn sm" onclick="openTemplateEditor(false)">✎ Edit Template</button>
+                <button class="btn sm" onclick="openTemplateEditor(true)">+ New Template</button>
+                <div class="tpl-hint">Default JD Introduction · edit or create reusable templates</div>
+            </section>
+
+            <!-- ============ INLINE TEMPLATE EDITOR ============ -->
+            <section id="templateEditorPanel" class="card template-editor-inline" style="display:none">
+                <div class="template-editor-topbar">
+                    <div class="template-editor-title-row">
+                        <div class="template-editor-icon">✎</div>
+                        <div>
+                            <div class="template-editor-title" id="templateEditorTitle">Edit Template</div>
+                            <div class="template-editor-sub" id="templateEditorSub">Changes are saved only when you click Save Changes.</div>
+                        </div>
+                        <span id="templateEditorModeBadge" class="template-editor-mode">Editing</span>
+                    </div>
+                    <div class="template-editor-actions">
+                        <button id="templateDeleteBtn" class="btn sm danger-outline" type="button" onclick="deleteTemplateCurrent()" style="display:none">Delete</button>
+                        <button class="btn sm" type="button" onclick="closeTemplateEditor()">Close</button>
+                    </div>
+                </div>
+
+                <div class="template-editor-content">
+                    <div class="template-section">
+                        <div class="template-section-title">Template details</div>
+                        <div class="template-section-sub">Define the reusable email fields first. Nothing is saved while you type.</div>
+                        <div class="template-editor-grid">
+                            <div class="field">
+                                <label class="field-label">Template Name</label>
+                                <input id="tplName" class="field-input" placeholder="e.g. Standard JD Introduction" />
+                            </div>
+                            <div class="field">
+                                <label class="field-label">To</label>
+                                <input id="tplTo" class="field-input" placeholder="{CandidateEmail}" />
+                            </div>
+                            <div class="field">
+                                <label class="field-label">CC <span style="font-weight:500;color:#98a2b3">Optional</span></label>
+                                <input id="tplCc" class="field-input" placeholder="comma or semicolon separated" />
+                            </div>
+                            <div class="field">
+                                <label class="field-label">Subject</label>
+                                <input id="tplSubject" class="field-input" placeholder="{Role} Opportunity" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="template-section">
+                        <div class="template-section-title">Email content</div>
+                        <div class="template-section-sub">Use the token buttons below to personalize the message automatically.</div>
+                        <div class="field">
+                            <label class="field-label">Email Body</label>
+                            <textarea id="tplBody" class="field-textarea template-body-editor" placeholder="Write your email here..."></textarea>
+                        </div>
+                    </div>
+
+                    <div class="template-section">
+                        <div class="template-section-title">Personalization</div>
+                        <div class="tokens template-token-box">
+                            <div class="tokens-title">Predefined Tokens — click to insert</div>
+                            <div id="templateTokenButtons" class="tokens-row"></div>
+                            <div class="tokens-title" style="margin-top:16px">Custom Tokens</div>
+                            <div class="custom-row">
+                                <input id="customName" placeholder="e.g. InterviewLink" />
+                                <input id="customValue" placeholder="Value (may contain other tokens)" />
+                                <button class="btn sm" type="button" onclick="addCustomToken()">+ Add</button>
+                            </div>
+                            <div id="customRows"></div>
+                        </div>
+                    </div>
+
+                    <div class="template-section" style="margin-bottom:0">
+                        <div class="template-section-title">Live preview</div>
+                        <div class="template-section-sub">Choose a candidate to verify token replacement before saving.</div>
+                        <div class="template-preview-grid">
+                            <div>
+                                <label class="field-label">Preview Candidate</label>
+                                <select id="editorCandidate" class="field-select" onchange="refreshEditorPreview()"></select>
+                            </div>
+                            <div class="preview-box template-live-preview">
+                                <small>Live Preview</small>
+                                <div id="editorPreviewTo" class="subj-row" style="margin-top:8px">—</div>
+                                <div id="editorPreviewBody" class="preview-body">Select a candidate below to verify tokens.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="template-footer">
+                    <div id="templateSaveState" class="template-save-state">No changes made</div>
+                    <div class="template-editor-actions">
+                        <button class="btn sm" type="button" onclick="closeTemplateEditor()">Close</button>
+                        <button id="templateSaveBtn" class="btn sm primary" type="button" disabled onclick="saveTemplateFromEditor()">Save Changes</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ============ RECIPIENTS ============ -->
+            <section class="card rec-card">
+                <div id="recipientCountBadge" class="rec-badge">0</div>
+                <div class="rec-text">
+                    <b id="recipientSummaryTitle">0 recipients selected</b>
+                    <span id="recipientSummarySub">Candidate data is taken from the selected rows</span>
+                </div>
+                <button class="btn sm" onclick="openRecipients()">View recipients</button>
+            </section>
+
+            <!-- ============ EMAIL PREVIEW ============ -->
+            <section class="card email-card">
+                <div class="email-head">
+                    <div>
+                        <h2>Email Preview</h2>
+                        <div class="desc">
+                            Select one candidate to verify token replacement. You do not need to preview every email in
+                            the batch.
+                        </div>
+                    </div>
+                    <div class="email-actions">
+                        <button class="btn sm" onclick="openEmailEditor()">✎ Edit Email</button>
+                        <button class="btn sm" onclick="openEmailPreview()">⊙ Email Preview</button>
+                    </div>
+                </div>
+
+                <div class="cand-row">
+                    <label for="candidateSelect">Candidate</label>
+                    <select
+                        id="candidateSelect"
+                        class="cand-select"
+                        onchange="changePreviewCandidate(this.value)"
+                    ></select>
+                    <span id="candidateCount" class="cand-count">0 selected</span>
+                </div>
+
+                <div class="email-meta">
+                    <div class="meta-row">
+                        <b>To</b>
+                        <span id="to" class="val">—</span>
+                    </div>
+                    <div class="meta-row">
+                        <b>CC</b>
+                        <div class="cc-wrap">
+                            <button id="ccAddBtn" class="btn sm" onclick="toggleCC()">+ Add CC</button>
+                            <input
+                                id="cc"
+                                class="meta-input"
+                                style="display: none"
+                                placeholder="Optional CC · comma or semicolon separated"
+                            />
+                        </div>
+                    </div>
+                    <div class="meta-row">
+                        <b>Subject</b>
+                        <input id="subjectBox" class="meta-input" />
+                    </div>
+                </div>
+
+                <div id="emailBody" class="email-body" contenteditable="true" spellcheck="true">
+                    Select a candidate to preview the personalized email.
+                </div>
+
+                <div id="sendStatus" class="send-status"><span id="sendStateInline">Preparing…</span> <span id="sendSubInline"></span></div>
+                <div class="bottom-actions">
+                    <div class="spacer"></div>
+                    <button id="sendButton" class="btn primary send-btn" onclick="openSendConfirmation()">
+                        ➤ Send Email to 0 Candidates
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============ MODAL ============ -->
+        <div id="modal" class="modal">
+            <div id="dialog" class="dialog">
+                <div class="dialog-head">
+                    <h2 id="modalTitle"></h2>
+                    <button class="close" onclick="closeModal()" aria-label="Close">×</button>
+                </div>
+                <div id="modalContent" class="dialog-body"></div>
+            </div>
+        </div>
+
+        <div id="toast" class="toast"></div>
+
+        <script>
+            /* ================================================================
+             * STATE
+             * ================================================================ */
+            const SERVER_INITIAL_DATA_B64 = "<?= initialDataB64 ?>";
+
+            let DATA = null;
+            let state = {
+                candidates: [],
+                templates: [],
+                activeTemplateId: "default",
+                previewRow: null,
+                role: "",
+                customer: "",
+                roleId: "",
+                contextEdited: { role: false, roleId: false, customer: false },
+                taName: "",
+                jdFileName: "",
+                jdResolving: false,
+                jdError: "",
+                cc: "",
+                emailDraft: null,
+                customTokens: [],
+                uploadedJd: null, // NEW: the custom JD uploaded from the UI
+                sendInProgress: false,
+                dirty: false,
+                templateEditorOriginal: null,
+                templateEditorMode: null,
+            };
+
+            /* ---------- Utils ---------- */
+            function esc(v) {
+                return String(v == null ? "" : v).replace(
+                    /[&<>"']/g,
+                    (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[m]
+                );
+            }
+            function toast(m) {
+                const t = document.getElementById("toast");
+                t.textContent = m;
+                t.classList.add("show");
+                clearTimeout(window._toast);
+                window._toast = setTimeout(() => t.classList.remove("show"), 2500);
+            }
+            function closeModal() {
+                const m = document.getElementById("modal");
+                m.classList.remove("open");
+                const oldFoot = document.querySelector("#dialog > .dialog-foot");
+                if (oldFoot) oldFoot.remove();
+            }
+            function openModal(title, html, wide) {
+                const dlg = document.getElementById("dialog");
+                dlg.classList.toggle("wide", !!wide);
+                document.getElementById("modalTitle").textContent = title;
+
+                const mc = document.getElementById("modalContent");
+                mc.innerHTML = html;
+
+                const oldFoot = dlg.querySelector(":scope > .dialog-foot");
+                if (oldFoot) oldFoot.remove();
+
+                document.getElementById("modal").classList.add("open");
+            }
+            function addModalFooter(buttonsHtml) {
+                const dlg = document.getElementById("dialog");
+                const foot = document.createElement("div");
+                foot.className = "dialog-foot";
+                foot.innerHTML = buttonsHtml;
+                dlg.appendChild(foot);
+            }
+
+            /* ---------- Data helpers ---------- */
+            function selectedCandidates() {
+                return state.candidates.slice();
+            }
+            function activeTemplate() {
+                return (
+                    state.templates.find((t) => String(t.id) === String(state.activeTemplateId)) ||
+                    state.templates[0] ||
+                    null
+                );
+            }
+            function tokenValue(c, t) {
+                const map = {
+                    CandidateName: c.name,
+                    CandidateEmail: c.email,
+                    Role: c.role || state.role,
+                    RoleID: c.roleId || state.roleId,
+                    Customer: c.customer || state.customer,
+                    CustomerName: c.customer || state.customer,
+                    TAName: c.taName || state.taName,
+                    TaName: c.taName || state.taName,
+                    JDFileName: c.jdFileName || state.jdFileName || "",
+                };
+                return Object.prototype.hasOwnProperty.call(map, t) ? map[t] : null;
+            }
+            function replaceTokens(text, c, custom) {
+                return String(text || "").replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (full, t) => {
+                    const v = tokenValue(c, t);
+                    if (v !== null) return String(v == null ? "" : v);
+                    if (custom && Object.prototype.hasOwnProperty.call(custom, t)) return String(custom[t] || "");
+                    return full;
+                });
+            }
+            function unresolved(text, c, custom) {
+                const arr = [];
+                String(text || "").replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (full, t) => {
+                    if (tokenValue(c, t) === null && !(custom && Object.prototype.hasOwnProperty.call(custom, t)))
+                        arr.push(t);
+                    return full;
+                });
+                return [...new Set(arr)];
+            }
+
+            /* ---------- Render all ---------- */
+            function renderAll() {
+                document.getElementById("roleIdTop").textContent = state.roleId || "—";
+                document.getElementById("roleValue").textContent = state.role || "—";
+                document.getElementById("customerValue").textContent = state.customer || "—";
+
+                document.getElementById("primaryFileName").textContent = state.jdFileName || (state.jdResolving ? "Fetching JD from SharePoint…" : "JD not resolved");
+
+                const meta = document.getElementById("primaryFileMeta");
+                meta.textContent = state.uploadedJd
+                    ? "Custom upload · this send only"
+                    : (state.jdFileName ? "Resolved from SharePoint" : (state.jdResolving ? "Reading the Role Files path from RoleJD master" : (state.jdError || "SharePoint JD not resolved")));
+
+                document.getElementById("recipientCountBadge").textContent = state.candidates.length;
+                document.getElementById("recipientSummaryTitle").textContent =
+                    `${state.candidates.length} recipient${state.candidates.length === 1 ? "" : "s"} selected`;
+                document.getElementById("recipientSummarySub").textContent =
+                    "Candidate data is taken from the selected rows";
+                document.getElementById("sendButton").textContent =
+                    `➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length === 1 ? "" : "s"}`;
+                populateTemplates();
+                populateCandidates();
+                renderPreview();
+                updateReady();
+            }
+            function populateTemplates() {
+                const s = document.getElementById("templateSelect");
+                s.innerHTML = state.templates
+                    .map(
+                        (t) =>
+                            `<option value="${esc(t.id)}" ${String(t.id) === String(state.activeTemplateId) ? "selected" : ""}>${esc(t.name)}</option>`
+                    )
+                    .join("");
+            }
+            function populateCandidates() {
+                const s = document.getElementById("candidateSelect");
+                s.innerHTML = state.candidates
+                    .map(
+                        (c) =>
+                            `<option value="${c.row}" ${Number(c.row) === Number(state.previewRow) ? "selected" : ""}>${esc(c.name)} · ${esc(c.email)}</option>`
+                    )
+                    .join("");
+                document.getElementById("candidateCount").textContent = `${state.candidates.length} selected`;
+            }
+            function changeTemplate(id) {
+                state.activeTemplateId = id;
+                state.emailDraft = null;
+                renderPreview();
+                updateReady();
+                try {
+                    google.script.run.withFailureHandler(() => {}).rememberLastTemplate(id);
+                } catch (e) {}
+            }
+            function changePreviewCandidate(row) {
+                state.previewRow = Number(row);
+                renderPreview();
+            }
+            function currentCandidate() {
+                return (
+                    state.candidates.find((c) => Number(c.row) === Number(state.previewRow)) ||
+                    state.candidates[0] ||
+                    null
+                );
+            }
+            function currentTemplateText() {
+                const t = activeTemplate() || { subject: "", body: "", cc: "", heading: "", customTokens: [] };
+                return state.emailDraft || t;
+            }
+            function customMap(t) {
+                const m = {};
+                (t.customTokens || []).forEach(
+                    (x) => (m[String(x.token || "").replace(/^\{|\}$/g, "")] = x.value || "")
+                );
+                return m;
+            }
+            function renderPreview() {
+                const c = currentCandidate(),
+                    t = currentTemplateText();
+                const ccEl = document.getElementById("cc");
+                const ccAddBtn = document.getElementById("ccAddBtn");
+
+                if (!c) {
+                    document.getElementById("to").textContent = "—";
+                    document.getElementById("subjectBox").value = "";
+                    document.getElementById("emailBody").textContent =
+                        "Select a candidate to preview the personalized email.";
+                    if (ccEl) {
+                        ccEl.style.display = "none";
+                        ccEl.value = "";
+                    }
+                    if (ccAddBtn) ccAddBtn.style.display = "";
+                    return;
+                }
+                const cm = customMap(t);
+                document.getElementById("to").textContent = replaceTokens(t.to || "{CandidateEmail}", c, cm);
+                document.getElementById("subjectBox").value = replaceTokens(t.subject, c, cm);
+                document.getElementById("emailBody").textContent = replaceTokens(t.body, c, cm);
+
+                const renderedCC = state.cc || replaceTokens(t.cc || "", c, cm);
+                if (renderedCC) {
+                    ccEl.style.display = "";
+                    ccEl.value = renderedCC;
+                    ccAddBtn.style.display = "none";
+                } else {
+                    ccEl.style.display = "none";
+                    ccEl.value = "";
+                    ccAddBtn.style.display = "";
+                }
+            }
+            function updateReady() {
+                const c = state.candidates;
+                const t = currentTemplateText();
+                let bad = [];
+                if (!c.length) bad.push("No recipients");
+                if (t) {
+                    c.forEach((x) => {
+                        ["to", "subject", "body"].forEach((k) => {
+                            const u = unresolved(t[k], x, customMap(t));
+                            if (u.length) bad.push(`${x.name}: ${u.join(", ")}`);
+                        });
+                    });
+                }
+                const ok = !bad.length;
+                const rh = document.getElementById("readyHelper");
+                if (rh) rh.style.display = "none";
+            }
+
+            /* ================================================================
+             * CONTEXT EDITORS — Role / Customer / Role ID
+             * ================================================================ */
+            function startInlineEdit(kind) {
+                const labels = { role:"Role", customer:"Customer", roleId:"Role ID" };
+                const value = kind === "role" ? state.role : kind === "customer" ? state.customer : state.roleId;
+                const textId = kind === "role" ? "roleValue" : kind === "customer" ? "customerValue" : "roleIdTop";
+                const host = document.getElementById(textId);
+                if (!host || host.querySelector("input")) return;
+
+                const original = String(value || "");
+                const safeValue = esc(original);
+                host.innerHTML =
+                    '<div class="inline-edit-wrap">' +
+                        '<input id="inlineContextInput" class="inline-edit-input" aria-label="' + esc(labels[kind]) + '" value="' + safeValue + '">' +
+                        '<button type="button" class="inline-save-btn" id="inlineContextSave">Save</button>' +
+                        '<button type="button" class="inline-cancel-btn" id="inlineContextCancel">Cancel</button>' +
+                    '</div>';
+
+                const input = document.getElementById("inlineContextInput");
+                const saveBtn = document.getElementById("inlineContextSave");
+                const cancelBtn = document.getElementById("inlineContextCancel");
+                if (!input || !saveBtn || !cancelBtn) return;
+
+                input.focus();
+                input.select();
+
+                let closed = false;
+                const close = () => {
+                    if (closed) return;
+                    closed = true;
+                    renderAll();
+                };
+
+                const save = () => {
+                    if (closed) return;
+                    const v = String(input.value || "").trim();
+                    if (!v) {
+                        toast(labels[kind] + " cannot be empty");
+                        input.focus();
+                        return;
+                    }
+
+                    if (v === original) {
+                        close();
+                        return;
+                    }
+
+                    if (kind === "role") { state.role = v; state.contextEdited.role = true; }
+                    if (kind === "customer") { state.customer = v; state.contextEdited.customer = true; }
+                    if (kind === "roleId") { state.roleId = v; state.contextEdited.roleId = true; }
+
+                    state.emailDraft = null;
+                    close();
+
+                    // The SharePoint JD was already resolved BEFORE this dialog
+                    // opened. Role / Role ID / Customer edits are email-content
+                    // overrides only. They must NEVER trigger another JD lookup.
+                    // The originally resolved JD remains attached to this send.
+                    toast(labels[kind] + " updated for this send");
+                };
+
+                const cancel = () => close();
+
+                saveBtn.addEventListener("click", save);
+                cancelBtn.addEventListener("click", cancel);
+                input.addEventListener("keydown", function(e) {
+                    if (e.key === "Enter") {
+                        e.preventDefault();
+                        save();
+                    } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        cancel();
+                    }
+                });
+            }
+
+            // Kept only for backward compatibility with older HTML calls.
+            // JD is intentionally NOT re-fetched after the dialog opens.
+            function refreshInlineJd(){
+                toast("JD was already resolved when this dialog opened. Role / Role ID changes only affect the email.");
+            }
+
+            /* ================================================================
+             * CC
+             * ================================================================ */
+            function toggleCC() {
+                const i = document.getElementById("cc");
+                const b = document.getElementById("ccAddBtn");
+                i.style.display = "";
+                b.style.display = "none";
+                i.focus();
+                if (!i.dataset.bound) {
+                    i.dataset.bound = "1";
+                    i.addEventListener("input", () => {
+                        state.cc = i.value;
+                        syncPreviewDraft();
+                    });
+                }
+            }
+
+            /* ================================================================
+             * RECIPIENTS
+             * ================================================================ */
+            function openRecipients() {
+                openModal(
+                    "Recipients",
+                    `<div class="intro">
+       <b>${state.candidates.length} candidates selected from the sheet.</b>
+       <div>You can spot-check or remove recipients without changing the source sheet.</div>
+     </div>
+     <div class="rec-list">${state.candidates
+         .map(
+             (c) => `<label class="rec-row">
+         <input type="checkbox" checked data-row="${c.row}"
+           onchange="toggleRecipient(${c.row},this.checked)">
+         <span class="avatar">${esc(
+             (c.name || "C")
+                 .split(/\s+/)
+                 .map((x) => x[0])
+                 .slice(0, 2)
+                 .join("")
+                 .toUpperCase()
+         )}</span>
+         <span class="rec-info">
+           <b>${esc(c.name)}</b>
+           <span>${esc(c.email)}</span>
+         </span>
+         <span class="rec-status ${c.email ? "ok" : "bad"}">
+           ${c.email ? "Valid" : "Missing email"}
+         </span>
+       </label>`
+         )
+         .join("")}</div>`
+                );
+                addModalFooter(`<button class="btn" onclick="closeModal()">Done</button>`);
+            }
+            function toggleRecipient(row, checked) {
+                if (checked) return;
+                if (state.candidates.length === 1) {
+                    toast("At least one recipient is required");
+                    return;
+                }
+                state.candidates = state.candidates.filter((c) => Number(c.row) !== Number(row));
+                renderAll();
+            }
+
+            /* ================================================================
+             * TEMPLATE EDITOR  (Edit / New)
+             * ================================================================ */
+            function openTemplateEditor(isNew) {
+                const current = activeTemplate() || {};
+                const source = isNew ? {
+                    id: "",
+                    name: "",
+                    to: "{CandidateEmail}",
+                    cc: "",
+                    heading: "Job Opportunity",
+                    subject: "{Role} Opportunity",
+                    body: "Hello {CandidateName},\n\nWe are pleased to share an opportunity for the {Role} position with {CustomerName}.\n\nPlease find the Job Description attached for your review.\n\nRegards,\n{TaName}",
+                    customTokens: []
+                } : JSON.parse(JSON.stringify(current));
+
+                state.templateEditorMode = isNew ? "new" : String(source.id || "default");
+                state.templateEditorOriginal = JSON.stringify(source);
+                state.dirty = false;
+
+                const panel = document.getElementById("templateEditorPanel");
+                if (!panel) return;
+                panel.style.display = "block";
+
+                document.getElementById("templateEditorTitle").textContent =
+                    isNew ? "New Template" : (String(source.id) === "default" ? "Edit Default Template" : "Edit Template");
+                document.getElementById("templateEditorSub").textContent =
+                    isNew ? "Create a reusable template. Nothing is saved until you click Save Changes." :
+                    "Edit the template directly here. Nothing is saved until you click Save Changes.";
+
+                const nameEl = document.getElementById("tplName");
+                const toEl = document.getElementById("tplTo");
+                const ccEl = document.getElementById("tplCc");
+                const subjectEl = document.getElementById("tplSubject");
+                const bodyEl = document.getElementById("tplBody");
+
+                nameEl.value = source.name || "";
+                toEl.value = source.to || "{CandidateEmail}";
+                ccEl.value = source.cc || "";
+                subjectEl.value = source.subject || "";
+                bodyEl.value = source.body || "";
+
+                // Template names identify reusable templates. Existing names are not edited here.
+                nameEl.readOnly = !isNew;
+
+                const deleteBtn = document.getElementById("templateDeleteBtn");
+                deleteBtn.style.display = (!isNew && String(source.id) !== "default") ? "" : "none";
+
+                const tokenHost = document.getElementById("templateTokenButtons");
+                tokenHost.innerHTML = ["CandidateName","CandidateEmail","Role","RoleID","CustomerName","TaName","JDFileName"]
+                    .map(x => `<button type="button" class="token" onclick="insertToken('{${x}}')">{${x}}</button>`)
+                    .join("");
+
+                renderTemplateCustomRows(source.customTokens || []);
+                populateTemplateEditorCandidates();
+                bindTemplateEditorInputs();
+                refreshEditorPreview();
+                state.dirty = false;
+                updateTemplateEditorState();
+                panel.classList.add("is-open");
+                panel.scrollIntoView({behavior:"smooth", block:"start"});
+                setTimeout(() => {
+                    const firstEditable = isNew ? nameEl : subjectEl;
+                    if (firstEditable && !firstEditable.readOnly) firstEditable.focus();
+                }, 50);
+            }
+
+            function bindTemplateEditorInputs() {
+                ["tplName","tplTo","tplCc","tplSubject","tplBody","customName","customValue"].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el || el.dataset.templateBound === "1") return;
+                    el.dataset.templateBound = "1";
+                    el.addEventListener("input", () => {
+                        markTemplateDirty();
+                        if (id !== "customName" && id !== "customValue") refreshEditorPreview();
+                    });
+                });
+                document.querySelectorAll("#customRows .customNameExisting,#customRows .customValueExisting").forEach(el => {
+                    el.dataset.templateBound = "1";
+                    el.addEventListener("input", () => { markTemplateDirty(); refreshEditorPreview(); });
+                });
+            }
+
+            function renderTemplateCustomRows(items) {
+                const wrap = document.getElementById("customRows");
+                if (!wrap) return;
+                wrap.innerHTML = "";
+                (items || []).forEach(x => {
+                    const div = document.createElement("div");
+                    div.className = "custom-row";
+                    div.innerHTML = `<input class="customNameExisting" value="${esc(x.token || "")}">
+                        <input class="customValueExisting" value="${esc(x.value || "")}">
+                        <button class="btn sm" type="button">Remove</button>`;
+                    div.querySelector("button").addEventListener("click", () => {
+                        div.remove();
+                        markTemplateDirty();
+                        refreshEditorPreview();
+                    });
+                    wrap.appendChild(div);
+                });
+            }
+
+            function populateTemplateEditorCandidates() {
+                const select = document.getElementById("editorCandidate");
+                if (!select) return;
+                select.innerHTML = state.candidates.map(c =>
+                    `<option value="${esc(c.row)}">${esc(c.name)} · ${esc(c.email)}</option>`
+                ).join("");
+                if (state.previewRow != null) select.value = String(state.previewRow);
+            }
+
+            function templateEditorComparable() {
+                const original = state.templateEditorOriginal ? JSON.parse(state.templateEditorOriginal) : {};
+                return {
+                    id: state.templateEditorMode === "new" ? "" : String(original.id || ""),
+                    name: (document.getElementById("tplName")?.value || "").trim(),
+                    to: (document.getElementById("tplTo")?.value || "").trim(),
+                    cc: (document.getElementById("tplCc")?.value || "").trim(),
+                    heading: "Job Opportunity",
+                    subject: (document.getElementById("tplSubject")?.value || "").trim(),
+                    body: document.getElementById("tplBody")?.value || "",
+                    customTokens: collectCustomTokens()
+                };
+            }
+
+            function updateTemplateEditorState() {
+                const b = document.getElementById("templateSaveBtn");
+                const stateEl = document.getElementById("templateSaveState");
+                const badge = document.getElementById("templateEditorModeBadge");
+                if (b) { b.disabled = !state.dirty; b.textContent = state.dirty ? "Save Changes" : "Save Changes"; }
+                if (stateEl) {
+                    stateEl.className = "template-save-state" + (state.dirty ? " dirty" : "");
+                    stateEl.textContent = state.dirty ? "Unsaved changes" : "No changes made";
+                }
+                if (badge) badge.textContent = state.dirty ? "Unsaved" : (state.templateEditorMode === "new" ? "New" : "Editing");
+            }
+
+            function markTemplateDirty() {
+                let changed = true;
+                try {
+                    const current = templateEditorComparable();
+                    const original = JSON.parse(state.templateEditorOriginal || "{}");
+                    const normalizedOriginal = {
+                        id: state.templateEditorMode === "new" ? "" : String(original.id || ""),
+                        name: String(original.name || "").trim(),
+                        to: String(original.to || "").trim(),
+                        cc: String(original.cc || "").trim(),
+                        heading: "Job Opportunity",
+                        subject: String(original.subject || "").trim(),
+                        body: String(original.body || ""),
+                        customTokens: original.customTokens || []
+                    };
+                    changed = JSON.stringify(current) !== JSON.stringify(normalizedOriginal);
+                } catch (e) {}
+                state.dirty = changed;
+                updateTemplateEditorState();
+            }
+
+            function closeTemplateEditor() {
+                if (state.dirty) {
+                    toast("Unsaved template changes. Click Save Changes or revert your edits before closing.");
+                    return;
+                }
+                const panel = document.getElementById("templateEditorPanel");
+                if (panel) { panel.style.display = "none"; panel.classList.remove("is-open"); }
+                state.dirty = false;
+                state.templateEditorOriginal = null;
+                state.templateEditorMode = null;
+            }
+
+            function insertToken(tok) {
+                const el = document.getElementById("tplBody");
+                if (!el) return;
+                const a = el.selectionStart || el.value.length,
+                    b = el.selectionEnd || el.value.length;
+                el.value = el.value.slice(0, a) + tok + el.value.slice(b);
+                el.focus();
+                el.selectionStart = el.selectionEnd = a + tok.length;
+                markTemplateDirty();
+                refreshEditorPreview();
+            }
+            function addCustomToken() {
+                const n = (document.getElementById("customName")?.value || "").trim().replace(/^\{|\}$/g, "");
+                const v = document.getElementById("customValue")?.value || "";
+                if (!n) return toast("Enter a custom token name");
+                const wrap = document.getElementById("customRows");
+                const div = document.createElement("div");
+                div.className = "custom-row";
+                div.innerHTML = `<input class="customNameExisting" value="${esc("{" + n + "}")}">
+     <input class="customValueExisting" value="${esc(v)}">
+     <button class="btn sm" type="button">Remove</button>`;
+                wrap.appendChild(div);
+                div.querySelector("button").addEventListener("click", () => {
+                    div.remove();
+                    markTemplateDirty();
+                    refreshEditorPreview();
+                });
+                bindTemplateEditorInputs();
+                markTemplateDirty();
+                document.getElementById("customName").value = "";
+                document.getElementById("customValue").value = "";
+                refreshEditorPreview();
+            }
+            function collectCustomTokens() {
+                return [...document.querySelectorAll("#customRows .custom-row")]
+                    .map((r) => {
+                        let token = r.querySelector(".customNameExisting")?.value.trim() || "";
+                        token = token.replace(/^\{|\}$/g, "");
+                        return {
+                            token: "{" + token + "}",
+                            value: r.querySelector(".customValueExisting")?.value || "",
+                        };
+                    })
+                    .filter((x) => x.token !== "{}");
+            }
+            function saveTemplateFromEditor() {
+                if (!state.templateEditorOriginal) return toast("Open a template before saving");
+                if (!state.dirty) return toast("No changes were made");
+
+                const original = JSON.parse(state.templateEditorOriginal);
+                const mode = state.templateEditorMode || String(original.id || "default");
+                const name = (document.getElementById("tplName")?.value || "").trim();
+                const to = (document.getElementById("tplTo")?.value || "").trim();
+                const cc = (document.getElementById("tplCc")?.value || "").trim();
+                const subject = (document.getElementById("tplSubject")?.value || "").trim();
+                const body = document.getElementById("tplBody")?.value || "";
+
+                if (!name) return toast("Template name is required");
+                if (!to) return toast("To field is required");
+                if (!subject) return toast("Subject is required");
+                if (!body.trim()) return toast("Email body is required");
+
+                const payload = {
+                    id: mode === "new" ? "" : mode,
+                    name: name,
+                    to: to,
+                    cc: cc,
+                    heading: "Job Opportunity",
+                    subject: subject,
+                    body: body,
+                    customTokens: collectCustomTokens()
+                };
+
+                const saveBtn = document.getElementById("templateSaveBtn");
+                if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
+
+                google.script.run
+                    .withSuccessHandler((r) => {
+                        if (!r || !r.success || !r.template) {
+                            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
+                            return toast("Template save was not confirmed by Apps Script");
+                        }
+                        state.templates = Array.isArray(r.templates) ? r.templates : state.templates;
+                        state.activeTemplateId = String(r.template.id);
+                        state.emailDraft = null;
+                        state.dirty = false;
+                        state.templateEditorOriginal = null;
+                        state.templateEditorMode = null;
+                        const panel = document.getElementById("templateEditorPanel");
+                        if (panel) panel.style.display = "none";
+                        renderAll();
+                        toast("Template saved successfully");
+                    })
+                    .withFailureHandler((e) => {
+                        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = "Save Changes"; }
+                        toast(e && e.message ? e.message : String(e));
+                    })
+                    .saveEmailTemplate(payload);
+            }
+
+            let templateDeleteArmed = false;
+            function deleteTemplateCurrent() {
+                const t = activeTemplate();
+                if (!t || String(t.id) === "default") return;
+                const btn = document.getElementById("templateDeleteBtn");
+                if (!templateDeleteArmed) {
+                    templateDeleteArmed = true;
+                    if (btn) { btn.textContent = "Click again to delete"; btn.dataset.armed = "1"; }
+                    setTimeout(() => {
+                        templateDeleteArmed = false;
+                        if (btn && btn.dataset.armed === "1") { btn.textContent = "Delete"; delete btn.dataset.armed; }
+                    }, 3500);
+                    return;
+                }
+                templateDeleteArmed = false;
+                if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
+                google.script.run
+                    .withSuccessHandler((r) => {
+                        state.templates = r.templates || state.templates;
+                        state.activeTemplateId = "default";
+                        state.dirty = false;
+                        state.templateEditorOriginal = null;
+                        state.templateEditorMode = null;
+                        const panel = document.getElementById("templateEditorPanel");
+                        if (panel) panel.style.display = "none";
+                        renderAll();
+                        toast("Template deleted");
+                    })
+                    .withFailureHandler((e) => {
+                        if (btn) { btn.disabled = false; btn.textContent = "Delete"; }
+                        toast(e && e.message ? e.message : String(e));
+                    })
+                    .deleteEmailTemplate(t.id);
+            }
+
+            function refreshEditorPreview() {
+                const row = Number(document.getElementById("editorCandidate")?.value || state.previewRow);
+                const c = state.candidates.find((x) => Number(x.row) === row) || state.candidates[0];
+                if (!c) return;
+                const t = {
+                    to: document.getElementById("tplTo")?.value || "{CandidateEmail}",
+                    subject: document.getElementById("tplSubject")?.value || "",
+                    body: document.getElementById("tplBody")?.value || "",
+                    customTokens: collectCustomTokens(),
+                };
+                const cm = customMap(t);
+                const toEl = document.getElementById("editorPreviewTo");
+                const bodyEl = document.getElementById("editorPreviewBody");
+                if (toEl) toEl.textContent = replaceTokens(t.subject, c, cm) || "—";
+                if (bodyEl) bodyEl.textContent = replaceTokens(t.body, c, cm);
+            }
+
+            /* ================================================================
+             * EMAIL PREVIEW + EDIT EMAIL
+             * ================================================================ */
+            function openEmailPreview() {
+                const c = currentCandidate(),
+                    t = currentTemplateText();
+                if (!c) return toast("No candidate selected");
+                const cm = customMap(t);
+                openModal(
+                    "Email Preview",
+                    `<div class="preview-box">
+       <small>Candidate</small>
+       <div class="cand-name">${esc(c.name)} · ${esc(c.email)}</div>
+       <div style="margin-top:12px"><small>To</small>
+         <div class="subj-row">${esc(replaceTokens(t.to || "{CandidateEmail}", c, cm))}</div>
+       </div>
+       ${
+           t.cc || state.cc
+               ? `<div style="margin-top:12px"><small>CC</small>
+         <div class="subj-row">${esc(replaceTokens(state.cc || t.cc, c, cm))}</div></div>`
+               : ""
+       }
+       <div style="margin-top:12px"><small>Subject</small>
+         <div class="subj-row">${esc(replaceTokens(t.subject, c, cm))}</div>
+       </div>
+       <div class="preview-body">${esc(replaceTokens(t.body, c, cm))}</div>
+     </div>`,
+                    true
+                );
+                addModalFooter(`<button class="btn" onclick="closeModal()">Close</button>`);
+            }
+            function openEmailEditor() {
+                const t = JSON.parse(JSON.stringify(currentTemplateText()));
+                openModal(
+                    "Edit Email",
+                    `<div class="intro">
+       <b>Edit the current email for this send.</b>
+       <div>This draft overrides the selected template for this send only.</div>
+     </div>
+     <div class="field">
+       <label class="field-label">Subject</label>
+       <input id="draftSubject" class="field-input" value="${esc(t.subject || "")}">
+     </div>
+     <div class="field">
+       <label class="field-label">CC</label>
+       <input id="draftCc" class="field-input" value="${esc(state.cc || t.cc || "")}"
+         placeholder="Optional, comma separated">
+     </div>
+     <div class="field">
+       <label class="field-label">Email Body</label>
+       <textarea id="draftBody" class="field-textarea">${esc(t.body || "")}</textarea>
+     </div>
+     <div class="tokens">
+       <div class="tokens-title">Predefined Tokens</div>
+       <div class="tokens-row">
+         ${["CandidateName", "CandidateEmail", "Role", "RoleID", "CustomerName", "TaName", "JDFileName"]
+             .map(
+                 (x) => `<button type="button" class="token"
+             onclick="insertDraftToken('{${x}}')">{${x}}</button>`
+             )
+             .join("")}
+       </div>
+     </div>`
+                );
+                addModalFooter(
+                    `<button class="btn" onclick="closeModal()">Cancel</button>
+     <button class="btn primary" onclick="saveEmailDraft()">Save</button>`
+                );
+            }
+            function insertDraftToken(tok) {
+                const el = document.getElementById("draftBody");
+                const a = el.selectionStart || el.value.length,
+                    b = el.selectionEnd || el.value.length;
+                el.value = el.value.slice(0, a) + tok + el.value.slice(b);
+                el.focus();
+                el.selectionStart = el.selectionEnd = a + tok.length;
+            }
+            function saveEmailDraft() {
+                const cc = (document.getElementById("draftCc")?.value || "").trim();
+                state.cc = cc;
+                state.emailDraft = {
+                    ...activeTemplate(),
+                    subject: document.getElementById("draftSubject").value,
+                    body: document.getElementById("draftBody").value,
+                    cc: cc,
+                };
+                closeModal();
+                renderAll();
+                toast("Email draft updated for this send");
+            }
+
+            /* ================================================================
+             * JD UPLOAD  (FIXED)
+             * ================================================================ */
+            function openAddJd() {
+                const current = state.uploadedJd
+                    ? `${esc(state.uploadedJd.name)} <span style="color:var(--muted)">(custom upload for this send)</span>`
+                    : state.jdFileName
+                      ? esc(state.jdFileName)
+                      : "No JD resolved yet";
+
+                openModal(
+                    "Add Job Description",
+                    `<div class="intro">
+       <b>Attach a custom Job Description for this send.</b>
+       <div>The uploaded file is stored in SharePoint and attached to every email in this batch.
+       Only PDF, DOCX or DOC files up to 3 MB are accepted.</div>
+     </div>
+     <div class="field">
+       <label class="field-label">Current JD</label>
+       <div style="padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#fafbfc;font-size:13.5px">
+         ${current}
+       </div>
+     </div>
+     <div class="field">
+       <label class="field-label">Choose file (PDF / DOCX / DOC, max 3 MB)</label>
+       <input id="jdFileInput" type="file" accept="application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+         style="width:100%;height:42px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff">
+     </div>
+     <div id="jdUploadStatus" style="font-size:12.5px;color:var(--muted)"></div>`
+                );
+                addModalFooter(
+                    `<button class="btn" onclick="closeModal()">Cancel</button>
+     ${state.uploadedJd ? `<button class="btn" onclick="clearUploadedJd()">Remove custom JD</button>` : ""}
+     <button id="jdUploadBtn" class="btn primary" onclick="uploadJdFromUi()">Upload file</button>`
+                );
+            }
+
+            function clearUploadedJd() {
+                state.uploadedJd = null;
+                const first = state.candidates[0];
+                state.jdFileName = first ? first.jdFileName || "" : "";
+                closeModal();
+                renderAll();
+                toast("Custom JD removed");
+            }
+
+            function uploadJdFromUi() {
+                const input = document.getElementById("jdFileInput");
+                const f = input && input.files ? input.files[0] : null;
+                if (!f) return toast("Choose a PDF / DOCX / DOC file first");
+
+                if (f.size > 3 * 1024 * 1024) {
+                    return toast("Please choose a file up to 3 MB");
+                }
+
+                const statusEl = document.getElementById("jdUploadStatus");
+                const btn = document.getElementById("jdUploadBtn");
+                if (statusEl) statusEl.textContent = "Reading file…";
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = "Uploading…";
+                }
+
+                const reader = new FileReader();
+
+                reader.onerror = () => {
+                    if (statusEl) statusEl.textContent = "";
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.textContent = "Upload file";
+                    }
+                    toast("Could not read the selected file");
+                };
+
+                reader.onload = () => {
+                    try {
+                        const bytes = new Uint8Array(reader.result);
+                        let binary = "";
+                        const chunk = 0x8000;
+                        for (let i = 0; i < bytes.length; i += chunk) {
+                            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+                        }
+                        const base64 = btoa(binary);
+
+                        const current = currentCandidate() || {};
+                        const payload = {
+                            base64: base64,
+                            fileName: f.name,
+                            mimeType: f.type || "",
+                            rowNumber: current.row || 0,
+                            role: current.role || state.role || "",
+                            roleId: current.roleId || state.roleId || "",
+                            roleFiles: current.roleFiles || "",
+                        };
+
+                        if (statusEl) statusEl.textContent = "Uploading to SharePoint…";
+
+                        google.script.run
+                            .withSuccessHandler((r) => {
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.textContent = "Upload file";
+                                }
+                                if (!r || !r.success) {
+                                    if (statusEl) statusEl.textContent = "";
+                                    return toast((r && (r.message || r.error)) || "JD upload failed");
+                                }
+
+                                state.uploadedJd = {
+                                    id: r.id || "",
+                                    name: r.name || f.name,
+                                    webUrl: r.webUrl || "",
+                                    mimeType: r.mimeType || f.type || "application/pdf",
+                                };
+                                state.jdFileName = state.uploadedJd.name;
+
+                                closeModal();
+                                renderAll();
+                                toast("Job Description uploaded and attached");
+                            })
+                            .withFailureHandler((e) => {
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.textContent = "Upload file";
+                                }
+                                if (statusEl) statusEl.textContent = "";
+                                toast(e && e.message ? e.message : String(e));
+                            })
+                            .uploadNewJD(payload);
+                    } catch (err) {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = "Upload file";
+                        }
+                        if (statusEl) statusEl.textContent = "";
+                        toast("Could not prepare the file for upload: " + (err.message || err));
+                    }
+                };
+
+                reader.readAsArrayBuffer(f);
+            }
+
+            /* ================================================================
+             * PREVIEW → DRAFT SYNC
+             * ================================================================ */
+            function syncPreviewDraft() {
+                const base = activeTemplate();
+                if (!base) return;
+                const subjectEl = document.getElementById("subjectBox");
+                const bodyEl = document.getElementById("emailBody");
+                if (!subjectEl || !bodyEl) return;
+                const candidate = currentCandidate();
+                if (!candidate) return;
+
+                const editedSubject = subjectEl.value || "";
+                const editedBody = bodyEl.innerText || bodyEl.textContent || "";
+                const renderedSubject = replaceTokens(base.subject, candidate, customMap(base));
+                const renderedBody = replaceTokens(base.body, candidate, customMap(base));
+
+                const subjectChanged = editedSubject !== renderedSubject;
+                const bodyChanged = editedBody !== renderedBody;
+                const ccChanged = (state.cc || "") !== (state.emailDraft?.cc || base.cc || "");
+
+                if (!subjectChanged && !bodyChanged && !ccChanged) return;
+
+                state.emailDraft = {
+                    ...base,
+                    subject: subjectChanged ? unrenderPreviewText(editedSubject, candidate) : base.subject,
+                    body: bodyChanged ? unrenderPreviewText(editedBody, candidate) : base.body,
+                    cc: state.cc != null ? state.cc : base.cc || "",
+                };
+            }
+            function unrenderPreviewText(text, c) {
+                let value = String(text || "");
+                const replacements = [
+                    [c.name, "{CandidateName}"],
+                    [c.email, "{CandidateEmail}"],
+                    [c.role || state.role, "{Role}"],
+                    [c.roleId || state.roleId, "{RoleID}"],
+                    [c.customer || state.customer, "{CustomerName}"],
+                    [c.taName || state.taName, "{TaName}"],
+                    [c.jdFileName || state.jdFileName, "{JDFileName}"],
+                ].filter((x) => x[0]);
+                replacements.sort((a, b) => String(b[0]).length - String(a[0]).length);
+                replacements.forEach(([plain, token]) => {
+                    value = value.split(String(plain)).join(token);
+                });
+                return value;
+            }
+
+            /* ================================================================
+             * SEND
+             * ================================================================ */
+            function openSendConfirmation(){syncPreviewDraft();if(!state.candidates.length)return toast("No recipients selected");if(!isReady())return toast("Please resolve the highlighted token/data issues first");sendNow();}
+            function isReady() {
+                const t = currentTemplateText();
+                if (!t) return false;
+                if (state.candidates.some((c) => !c.email)) return false;
+                for (const c of state.candidates) {
+                    const u = [t.to, t.subject, t.body].flatMap((x) => unresolved(x, c, customMap(t)));
+                    if (u.length) return false;
+                }
+                return true;
+            }
+            function getInitialResolvedJDForSend_(){
+                const c = state.candidates[0] || {};
+                const option = (c.jdOptions || []).find(x => x && x.id) || null;
+                if (!option) return null;
+                return {
+                    id: option.id,
+                    name: option.name || c.jdFileName || state.jdFileName || '',
+                    fileName: option.name || c.jdFileName || state.jdFileName || '',
+                    webUrl: option.webUrl || '',
+                    mimeType: option.mimeType || 'application/pdf',
+                    driveId: option.driveId || ''
+                };
+            }
+
+            function sendNow(){
+                if(state.sendInProgress)return; state.sendInProgress=true;
+                const status=document.getElementById("sendStatus"),stateEl=document.getElementById("sendStateInline"),subEl=document.getElementById("sendSubInline"),sendBtn=document.getElementById("sendButton");
+                if(status)status.classList.add("show"); if(stateEl)stateEl.textContent="Preparing…"; if(subEl)subEl.textContent=""; if(sendBtn){sendBtn.disabled=true;sendBtn.textContent="Sending…";}
+                const t=JSON.parse(JSON.stringify(currentTemplateText()));
+                const overrides={
+                    role:state.role,
+                    customer:state.customer,
+                    roleId:state.roleId,
+                    roleEdited:!!state.contextEdited.role,
+                    roleIdEdited:!!state.contextEdited.roleId,
+                    customerEdited:!!state.contextEdited.customer,
+                    // If a custom JD was uploaded, use that. Otherwise send the
+                    // EXACT JD that was resolved before this dialog opened.
+                    // This prevents edited Role / Role ID values from causing a
+                    // second SharePoint lookup or changing the attachment.
+                    jdFileName:state.uploadedJd?state.uploadedJd.name:state.jdFileName,
+                    jd:state.uploadedJd || getInitialResolvedJDForSend_()
+                };
+                if(stateEl)stateEl.textContent="Sending…";
+                google.script.run.withSuccessHandler(finishSend).withFailureHandler(e=>failSend(e.message||String(e))).sendBatchEmail({template:t,overrides:overrides,draft:state.emailDraft||null});
+            }
+            function failSend(msg){state.sendInProgress=false;const status=document.getElementById("sendStatus"),s=document.getElementById("sendStateInline"),sub=document.getElementById("sendSubInline"),b=document.getElementById("sendButton");if(status)status.classList.add("show");if(s)s.textContent="Send failed";if(sub)sub.textContent=msg;if(b){b.disabled=false;b.textContent=`➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length===1?"":"s"}`;}toast(msg);}
+            function finishSend(result){state.sendInProgress=false;const sent=result?.sent||result?.successful||0,failed=result?.failed||0,s=document.getElementById("sendStateInline"),sub=document.getElementById("sendSubInline"),b=document.getElementById("sendButton");if(s)s.textContent=failed?"Send completed with failures":"✓ Send completed";if(sub)sub.textContent=`${sent} sent · ${failed} failed`;if(b){b.disabled=false;b.textContent=`➤ Send Email to ${state.candidates.length} Candidate${state.candidates.length===1?"":"s"}`;}toast(failed?`${sent} sent · ${failed} failed`:`${sent} emails sent`);}
+
+            /* ================================================================
+             * BOOTSTRAP
+             * ================================================================ */
+            function bootstrap() {
+                let parsed = null;
+                try {
+                    const raw = atob(SERVER_INITIAL_DATA_B64 || "");
+                    parsed = JSON.parse(raw);
+                } catch (e) {}
+                if (parsed && parsed.success && Array.isArray(parsed.candidates) && parsed.candidates.length) {
+                    applyData(parsed);
+                    return;
+                }
+                google.script.run
+                    .withSuccessHandler(applyData)
+                    .withFailureHandler((e) => {
+                        document.getElementById("emailBody").textContent =
+                            "Unable to load sheet data: " + (e.message || e);
+                    })
+                    .bootstrapMailerData();
+            }
+            function applyData(d) {
+                if (!d || !d.success) {
+                    document.getElementById("emailBody").textContent =
+                        "Unable to load sheet data: " + (d?.error || "Unknown error");
+                    return;
+                }
+                DATA = d;
+                state.candidates = (d.candidates || []).map((c) => ({ ...c }));
+                state.templates = d.templates || [];
+
+                const wanted =
+                    (d.lastTemplateId && state.templates.find((t) => String(t.id) === String(d.lastTemplateId))) ||
+                    state.templates.find((t) => String(t.name).toLowerCase() === "default jd introduction") ||
+                    state.templates.find((t) => t.id === "default") ||
+                    state.templates[0];
+                state.activeTemplateId = wanted?.id || "default";
+
+                const first = state.candidates[0] || {};
+                state.role = first.role || "";
+                state.customer = first.customer || "";
+                state.roleId = first.roleId || "";
+                state.taName = first.taName || "";
+                state.jdFileName = first.jdFileName || "";
+                state.jdError = "";
+                state.jdResolving = true;
+                state.contextEdited = { role:false, roleId:false, customer:false };
+                state.previewRow = first.row || null;
+
+                // JD resolution has already completed BEFORE showModalDialog().
+                // Hydrate the UI from the server result instead of making another
+                // SharePoint request from the browser.
+                applyInitialJDResults(d.jdResults || []);
+                renderAll();
+
+                const subjectEl = document.getElementById("subjectBox");
+                const bodyEl = document.getElementById("emailBody");
+                if (subjectEl && !subjectEl.dataset.bound) {
+                    subjectEl.dataset.bound = "1";
+                    subjectEl.addEventListener("input", syncPreviewDraft);
+                }
+                if (bodyEl && !bodyEl.dataset.bound) {
+                    bodyEl.dataset.bound = "1";
+                    bodyEl.addEventListener("input", syncPreviewDraft);
+                }
+            }
+            function applyInitialJDResults(list) {
+                list = Array.isArray(list) ? list : [];
+                const byRow = {};
+                list.forEach(r => { byRow[String(r.row)] = r; });
+                let firstFound = null;
+                let failed = [];
+                state.candidates.forEach(c => {
+                    const r = byRow[String(c.row)];
+                    if (r && r.status === "found") {
+                        c.jdAvailable = true;
+                        c.jdFileName = r.fileName || "";
+                        c.jdError = "";
+                        c.jdOptions = r.options || [];
+                        if (!firstFound) firstFound = r;
+                    } else {
+                        c.jdAvailable = false;
+                        c.jdFileName = "";
+                        c.jdError = (r && r.error) || "JD could not be resolved before opening the dialog.";
+                        failed.push(c);
+                    }
+                });
+                state.jdResolving = false;
+                state.jdFileName = firstFound ? (firstFound.fileName || "") : "";
+                state.jdError = failed.length ? failed.map(c => c.name + ": " + c.jdError).join(" | ") : "";
+            }
+
+            function fetchJdOnDialogOpen() {
+                if (!state.candidates.length) return;
+
+                state.jdResolving = true;
+                state.jdError = "";
+                state.jdFileName = "";
+                state.candidates.forEach(c => {
+                    c.jdAvailable = null;
+                    c.jdError = "";
+                });
+                renderAll();
+
+                google.script.run
+                    .withSuccessHandler(results => {
+                        state.jdResolving = false;
+                        const list = Array.isArray(results) ? results : [];
+                        const byRow = {};
+                        list.forEach(r => { byRow[String(r.row)] = r; });
+
+                        let firstFound = null;
+                        let failed = [];
+
+                        state.candidates.forEach(c => {
+                            const r = byRow[String(c.row)];
+                            if (r && r.status === "found") {
+                                c.jdAvailable = true;
+                                c.jdFileName = r.fileName || "";
+                                c.jdError = "";
+                                c.jdOptions = r.options || [];
+                                if (!firstFound) firstFound = r;
+                            } else {
+                                c.jdAvailable = false;
+                                c.jdFileName = "";
+                                c.jdError = (r && r.error) || "JD could not be resolved from Role Files";
+                                failed.push(c);
+                            }
+                        });
+
+                        if (firstFound) {
+                            state.jdFileName = firstFound.fileName || "";
+                            state.jdError = failed.length ? failed.map(c => c.name + ": " + c.jdError).join(" | ") : "";
+                            renderAll();
+                            if (failed.length) {
+                                toast("JD fetched for some recipients; check the JD error details.");
+                            } else {
+                                toast("JD fetched: " + state.jdFileName);
+                            }
+                        } else {
+                            state.jdFileName = "";
+                            state.jdError = failed.length ? failed[0].jdError : "No JD result returned.";
+                            renderAll();
+                            toast("JD fetch failed. Check the JD File section.");
+                        }
+                    })
+                    .withFailureHandler(err => {
+                        state.jdResolving = false;
+                        state.jdFileName = "";
+                        state.jdError = err && err.message ? err.message : String(err || "JD lookup failed");
+                        state.candidates.forEach(c => {
+                            c.jdAvailable = false;
+                            c.jdError = state.jdError;
+                        });
+                        renderAll();
+                        toast("JD fetch failed. Check the JD File section.");
+                    })
+                    .resolveSelectedCandidateJDs();
+            }
+
+            function basename(p) {
+                const s = String(p || "")
+                    .replace(/\\/g, "/")
+                    .split("/")
+                    .filter(Boolean);
+                return s.length ? s[s.length - 1] : "";
+            }
+            /* ---------- Global events ---------- */
+            document.getElementById("modal").addEventListener("click", (e) => {
+                if (e.target.id === "modal") closeModal();
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") closeModal();
+            });
+
+            /* ---------- Compatibility shims (kept) ---------- */
+            function openTemplatePreviewFromToolbar() {
+                openEmailPreview();
+            }
+            function openTemplateEditorPreview() {
+                openEmailPreview();
+            }
+            function openTemplatePreview() {
+                openEmailPreview();
+            }
+
+            function runFrontendEvals() {
+                const checks = [];
+                const title = document.querySelector(".email-head h2");
+                const editBtn = [...document.querySelectorAll(".email-actions button")].find((b) =>
+                    /Edit Email/i.test(b.textContent || "")
+                );
+                const previewBtn = [...document.querySelectorAll(".email-actions button")].find((b) =>
+                    /Email Preview/i.test(b.textContent || "")
+                );
+                const html = document.documentElement.innerHTML;
+                checks.push({
+                    name: "Email Preview heading exists",
+                    pass: !!title && title.textContent.trim() === "Email Preview",
+                });
+                checks.push({ name: "Edit Email button exists", pass: !!editBtn });
+                checks.push({ name: "Email Preview button exists", pass: !!previewBtn });
+                checks.push({ name: "No TaEmail predefined token", pass: !/\{TA?Email\}/i.test(html) });
+                checks.push({ name: "TaName predefined token exists", pass: /\{TaName\}/.test(html) });
+                const failed = checks.filter((x) => !x.pass);
+                console.log(
+                    "JD MAILER FRONTEND EVALS",
+                    JSON.stringify({ passed: checks.length - failed.length, failed: failed.length, checks }, null, 2)
+                );
+                return { ok: failed.length === 0, checks };
+            }
+
+            bootstrap();
+        </script>
+    </body>
+</html>
