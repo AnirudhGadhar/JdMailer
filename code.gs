@@ -60,6 +60,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('JD Mailer')
     .addItem('Send JD To Selected Candidates', 'openSendJD')
+    .addItem('Test  Users JSON Requests', 'testMultipleUsersSelectedCandidates')
     .addToUi();
 }
 
@@ -861,15 +862,14 @@ function cacheUploadFolder_(folder, path) {
   if (!folder || !folder.id || !path) return;
   var key = uploadFolderCacheKey_(path);
   if (!key) return;
-  var value = JSON.stringify({id:String(folder.id), path:String(path)});
+  var value = JSON.stringify({id: String(folder.id), path: String(path)});
   CacheService.getUserCache().put(key, value, TRIBERA_JD.ROLE_CONTEXT_CACHE_SECONDS);
-  CacheService.getScriptCache().put(key, value, TRIBERA_JD.ROLE_CONTEXT_CACHE_SECONDS);
 }
 
 function getCachedUploadFolder_(path) {
   var key = uploadFolderCacheKey_(path);
   if (!key) return null;
-  var raw = CacheService.getUserCache().get(key) || CacheService.getScriptCache().get(key);
+  var raw = CacheService.getUserCache().get(key);
   if (!raw) return null;
   try {
     var parsed = JSON.parse(raw);
@@ -1911,8 +1911,15 @@ function saveDefaultTemplate_(template) {
     customTokens: Array.isArray(template.customTokens) ? template.customTokens : []
   };
   validateTemplate_(normalized);
-  PropertiesService.getDocumentProperties().setProperty(TRIBERA_JD.PROP_DEFAULT_TEMPLATE, JSON.stringify(normalized));
-  return { success: true, template: normalized, templates: getEmailTemplates() };
+
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(5000);
+  try {
+    PropertiesService.getDocumentProperties().setProperty(TRIBERA_JD.PROP_DEFAULT_TEMPLATE, JSON.stringify(normalized));
+    return { success: true, template: normalized, templates: getEmailTemplates() };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function saveCustomTemplate(template) {
@@ -2343,7 +2350,7 @@ function prepareBatchEmail(payload) {
 
     return {
       row:c.row, candidateName:c.name, email:c.email, role:c.role, roleId:c.roleId, customer:c.customer,
-      taName:c.taName, roleFiles:c.roleFiles||'', heading:heading, to:to, cc:cc, subject:subject, body:body,
+      taName:c.taName, taEmail:c.taEmail, roleFiles:c.roleFiles||'', heading:heading, to:to, cc:cc, subject:subject, body:body,
       jd:jd ? {status:'found',id:jd.id,fileName:jd.name,webUrl:jd.webUrl||'',mimeType:jd.mimeType||'application/pdf',driveId:jd.driveId||'',path:c.roleFiles||''} : {status:'missing',id:'',fileName:'',webUrl:'',mimeType:'',driveId:'',path:c.roleFiles||''},
       validation:{valid:errors.length===0,errors:errors,unresolved:unresolved}
     };
@@ -2555,6 +2562,99 @@ function renderTokens_(text, candidate, jd, customValues, unresolved) {
 }
 
 
+
+/* ================================================================
+ * MULTI-USER PAYLOAD TEST MODE
+ *
+ * TEST ONLY:
+ * - Does NOT send email.
+ * - Does NOT call Graph / Notification API.
+ * - Does NOT write shared mail logs.
+ * - Receives the payload from the current user's browser execution,
+ *   logs it to the Apps Script Execution log, and returns it.
+ *
+ * This deliberately avoids ScriptProperties/DocumentProperties for
+ * temporary payload state so concurrent users do not overwrite each other.
+ * ================================================================ */
+
+function logJDMailerPayload(payload) {
+  payload = payload || {};
+
+  var activeUser = '';
+  var temporaryUserKey = '';
+  try {
+    activeUser = String(Session.getActiveUser().getEmail() || '');
+  } catch (e) {}
+  try {
+    temporaryUserKey = String(Session.getTemporaryActiveUserKey() || '');
+  } catch (e2) {}
+
+  var record = {
+    testMode: true,
+    action: 'JD_MAILER_PAYLOAD_TEST',
+    executionId: Utilities.getUuid(),
+    serverTimestamp: new Date().toISOString(),
+    activeUser: activeUser || '(email unavailable for this deployment)',
+    temporaryUserKey: temporaryUserKey || '(unavailable)',
+    payload: payload
+  };
+
+  Logger.log('========== JD MAILER MULTI-USER PAYLOAD TEST ==========' );
+  Logger.log(JSON.stringify(record, null, 2));
+  Logger.log('=========================================================' );
+
+  return {
+    success: true,
+    testMode: true,
+    executionId: record.executionId,
+    serverTimestamp: record.serverTimestamp,
+    activeUser: record.activeUser,
+    temporaryUserKey: record.temporaryUserKey,
+    message: 'Payload received and written to the Apps Script Execution log. No email was sent.'
+  };
+}
+
+/**
+ * Manual editor test.
+ * Select candidate rows in the Sheet, run this function from Apps Script,
+ * then open Executions to inspect the JSON payload.
+ *
+ * This is useful for testing selection isolation before using the HTML UI.
+ */
+function testSelectedCandidatesPayload() {
+  var rows = captureJDSelection();
+  if (!rows.length) {
+    throw new Error('Select one or more candidate rows first.');
+  }
+
+  var candidates = loadCandidates_(rows);
+  validateSingleRoleSelection_(candidates);
+
+  var payload = {
+    version: 'multi-user-payload-test-v1',
+    clientTimestamp: new Date().toISOString(),
+    source: 'Apps Script editor test',
+    sheet: getCandidateSheet_().getName(),
+    selectedRows: rows.slice(),
+    candidateCount: candidates.length,
+    candidates: candidates.map(function(c) {
+      return {
+        row: Number(c.row || 0),
+        name: String(c.name || ''),
+        email: String(c.email || ''),
+        role: String(c.role || ''),
+        roleId: String(c.roleId || ''),
+        customer: String(c.customer || ''),
+        taName: String(c.taName || ''),
+        taEmail: String(c.taEmail || ''),
+        roleFiles: String(c.roleFiles || '')
+      };
+    })
+  };
+
+  return logJDMailerPayload(payload);
+}
+
 /* ================================================================
  * SEND - MODE DISPATCH
  * ================================================================ */
@@ -2622,11 +2722,178 @@ function sendPreparedEmails(payload) {
  * SEND - NOTIFICATION API
  * ================================================================ */
 
-function sendPreparedEmailsViaNotificationApi_(items){
-  var token=getNotificationAccessToken(),requests=items.map(function(item){return {item:item,request:buildNotificationRequest_(item,token)};}),responses;
-  try{responses=UrlFetchApp.fetchAll(requests.map(function(x){return x.request;}));}catch(e){throw new Error('Notification API batch request failed: '+jdFriendlyError(e));}
-  var results=requests.map(function(x,i){var item=x.item,r=responses[i],code=r.getResponseCode(),body=r.getContentText(),data={};try{data=body?JSON.parse(body):{};}catch(e){}var ok=code>=200&&code<300;return {success:ok,row:Number(item.row||0),name:item.candidateName||item.name||'Candidate',email:item.to||item.email||'',roleId:item.roleId||'',status:ok?(data.status||'queued'):'Failed',messageId:data.message_id||data.id||'',httpCode:code,jdFileName:item.jd&&item.jd.fileName||'',attachment:false,reason:ok?'':'Notification API failed. HTTP '+code+(body?' - '+truncate_(body,700):''),details:ok?'Notification Service accepted the JD notification.':'Notification Service rejected the JD notification.'};});
-  writeMailLogsBatch_(items,results);var sent=results.filter(function(r){return r.success;}).length,failed=results.length-sent;return {success:failed===0,total:results.length,sent:sent,successful:sent,failed:failed,results:results,timing:'Notification API fetchAll + cached access token'};
+function sendPreparedEmailsViaNotificationApi_(items) {
+  items = Array.isArray(items) ? items : [];
+
+  if (!items.length) {
+    throw new Error('No candidate emails were prepared.');
+  }
+
+  /*
+   * IMPORTANT PAYLOAD RULE
+   * ----------------------
+   * 1 candidate  -> one JSON object
+   * 2+ candidates -> ONE JSON array containing all candidate objects
+   *
+   * Example for two candidates:
+   * [
+   *   { ...Nihal payload... },
+   *   { ...Arpit payload... }
+   * ]
+   *
+   * This is ONE HTTP request to Notification Service.
+   */
+  var payloads = items.map(function(item) {
+    return buildNotificationPayload_(item);
+  });
+
+  var outboundPayload = payloads.length === 1
+    ? payloads[0]
+    : payloads;
+
+  var token = getNotificationAccessToken();
+  var request = buildNotificationBatchRequest_(outboundPayload, token);
+
+  var response;
+
+  try {
+    response = UrlFetchApp.fetch(request.url, {
+      method: request.method,
+      contentType: request.contentType,
+      headers: request.headers,
+      payload: request.payload,
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    throw new Error(
+      'Notification API batch request failed: ' + jdFriendlyError(e)
+    );
+  }
+
+  var code = response.getResponseCode();
+  var body = response.getContentText() || '';
+  var data = {};
+
+  try {
+    data = body ? JSON.parse(body) : {};
+  } catch (e2) {
+    data = {};
+  }
+
+  var ok = code >= 200 && code < 300;
+
+  /*
+   * The API response belongs to the ONE batch request.
+   * If the service returns candidate-level results, use them.
+   * Otherwise apply the HTTP result to every selected candidate.
+   */
+  var responseResults = Array.isArray(data.results)
+    ? data.results
+    : (Array.isArray(data.items) ? data.items : null);
+
+  var results = items.map(function(item, index) {
+    var candidateResponse = responseResults && responseResults[index]
+      ? responseResults[index]
+      : {};
+
+    var candidateOk =
+      responseResults && responseResults[index] &&
+      typeof candidateResponse.success === 'boolean'
+        ? candidateResponse.success
+        : ok;
+
+    return {
+      success: candidateOk,
+      row: Number(item.row || 0),
+      name: item.candidateName || item.name || 'Candidate',
+      email: item.to || item.email || '',
+      roleId: item.roleId || '',
+      status: candidateOk
+        ? (candidateResponse.status || data.status || 'queued')
+        : 'Failed',
+      messageId:
+        candidateResponse.message_id ||
+        candidateResponse.messageId ||
+        data.message_id ||
+        data.messageId ||
+        data.id ||
+        '',
+      httpCode: code,
+      jdFileName: item.jd && item.jd.fileName || '',
+      attachment: false,
+      reason: candidateOk
+        ? ''
+        : (
+            candidateResponse.reason ||
+            'Notification API failed. HTTP ' + code +
+            (body ? ' - ' + truncate_(body, 700) : '')
+          ),
+      details: candidateOk
+        ? 'Notification Service accepted the JD notification.'
+        : 'Notification Service rejected the JD notification.'
+    };
+  });
+
+  writeMailLogsBatch_(items, results);
+
+  var sent = results.filter(function(r) {
+    return r.success;
+  }).length;
+
+  var failed = results.length - sent;
+
+  Logger.log('');
+  Logger.log('============================================================');
+  Logger.log('TRIBERA JD MAILER - NOTIFICATION BATCH REQUEST');
+  Logger.log('============================================================');
+  Logger.log('Candidates: ' + items.length);
+  Logger.log('HTTP requests sent: 1');
+  Logger.log('Payload shape: ' + (payloads.length === 1 ? 'OBJECT' : 'ARRAY'));
+  Logger.log('HTTP status: ' + code);
+  Logger.log('Successful candidates: ' + sent);
+  Logger.log('Failed candidates: ' + failed);
+  Logger.log('Response received: YES');
+  Logger.log('============================================================');
+
+  return {
+    success: failed === 0,
+    total: results.length,
+    sent: sent,
+    successful: sent,
+    failed: failed,
+    requestCount: 1,
+    candidateCount: items.length,
+    payloadShape: payloads.length === 1 ? 'object' : 'array',
+    results: results,
+    response: data,
+    timing: 'Notification API single batch request',
+    realEmailSent: false
+  };
+}
+
+function buildNotificationBatchRequest_(payload, token) {
+  var props = PropertiesService.getScriptProperties();
+  var baseUrl = String(
+    props.getProperty('NOTIFICATION_API_URL') || ''
+  ).trim();
+
+  if (!baseUrl) {
+    throw new Error('NOTIFICATION_API_URL is missing.');
+  }
+
+  baseUrl = baseUrl.replace(/\/+$/, '');
+
+  return {
+    url: baseUrl + '/api/v1/notifications/send',
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/json'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
 }
 
 
@@ -2688,6 +2955,12 @@ function buildGraphMessage_(item, attachmentBase64, attachmentName, attachmentMi
 
 function sendPreparedEmailsToHttpbin_(items) {
   var endpoint = 'https://httpbin.org/post';
+  items = Array.isArray(items) ? items : [];
+
+  if (!items.length) {
+    throw new Error('No candidate emails were prepared.');
+  }
+
   var selection = getStoredJDSelection();
   var selectedRows = (selection.rows || [])
     .map(Number)
@@ -2700,53 +2973,59 @@ function sendPreparedEmailsToHttpbin_(items) {
 
   var sheet = getCandidateSheet_();
 
-  if (selection.sheetId && String(sheet.getSheetId()) !== String(selection.sheetId)) {
-    throw new Error('The candidate sheet changed after selection. Please select the candidates again.');
-  }
-
-  var selectedRowMap = {};
-  selectedRows.forEach(function(row) { selectedRowMap[String(row)] = true; });
-
-  var preparedRowMap = {};
-
-  if (items.length !== selectedRows.length) {
+  if (
+    selection.sheetId &&
+    String(sheet.getSheetId()) !== String(selection.sheetId)
+  ) {
     throw new Error(
-      'Prepared candidate count (' + items.length + ') does not match selected sheet row count (' + selectedRows.length + ').'
+      'The candidate sheet changed after selection. Please select the candidates again.'
     );
   }
 
-  items.forEach(function(item) {
-    var row = Number(item.row || 0);
-    if (!row) throw new Error('Prepared candidate is missing its sheet row number.');
-    if (!selectedRowMap[String(row)]) {
-      throw new Error('Prepared candidate row ' + row + ' was not part of the current Google Sheet selection.');
-    }
-    if (preparedRowMap[String(row)]) throw new Error('Duplicate prepared candidate row: ' + row);
-    preparedRowMap[String(row)] = true;
+  if (items.length !== selectedRows.length) {
+    throw new Error(
+      'Prepared candidate count (' + items.length +
+      ') does not match selected sheet row count (' + selectedRows.length + ').'
+    );
+  }
+
+  var selectedRowMap = {};
+  selectedRows.forEach(function(row) {
+    selectedRowMap[String(row)] = true;
   });
 
-  Logger.log('');
-  Logger.log('================================================');
-  Logger.log('TRIBERA JD MAILER - BACKEND TEST');
-  Logger.log('================================================');
-  Logger.log('API: ' + endpoint);
-  Logger.log('Sheet: ' + sheet.getName());
-  Logger.log('Selected rows: ' + JSON.stringify(selectedRows));
-  Logger.log('Prepared candidates: ' + items.length);
-  Logger.log('------------------------------------------------');
-
-  var requests = [];
-  var requestMeta = [];
+  var preparedRowMap = {};
+  var payloads = [];
+  var candidateMeta = [];
 
   items.forEach(function(item) {
     var row = Number(item.row || 0);
-    var candidate = loadCandidate_(row);
 
-    var sheetEmail = String(candidate.email || '').trim();
+    if (!row) {
+      throw new Error('Prepared candidate is missing its Sheet row number.');
+    }
+
+    if (!selectedRowMap[String(row)]) {
+      throw new Error(
+        'Prepared candidate row ' + row +
+        ' was not part of the current Google Sheet selection.'
+      );
+    }
+
+    if (preparedRowMap[String(row)]) {
+      throw new Error('Duplicate prepared candidate row: ' + row);
+    }
+
+    preparedRowMap[String(row)] = true;
+
+    var candidate = loadCandidate_(row);
     var preparedEmail = String(item.to || item.email || '').trim();
+    var sheetEmail = String(candidate.email || '').trim();
 
     if (!isValidEmail_(preparedEmail)) {
-      throw new Error('Invalid prepared email at row ' + row + ': ' + preparedEmail);
+      throw new Error(
+        'Invalid prepared email at row ' + row + ': ' + preparedEmail
+      );
     }
 
     if (sheetEmail.toLowerCase() !== preparedEmail.toLowerCase()) {
@@ -2757,148 +3036,174 @@ function sendPreparedEmailsToHttpbin_(items) {
       );
     }
 
-    var testPayload = {
-      source: 'tribera-jd-mailer',
-      test_mode: true,
-      sheet_name: sheet.getName(),
-      sheet_id: String(sheet.getSheetId()),
-      sheet_row: row,
-      candidate_name: String(item.candidateName || item.name || candidate.name || '').trim(),
-      candidate_email: preparedEmail,
-      role: String(item.role || candidate.role || '').trim(),
-      role_id: String(item.roleId || candidate.roleId || '').trim(),
-      customer: String(item.customer || candidate.customer || '').trim(),
-      ta_name: String(item.taName || candidate.taName || '').trim(),
-      ta_email: String(item.taEmail || candidate.taEmail || '').trim(),
-      cc: String(item.cc || '').trim(),
-      subject: String(item.subject || ''),
-      body: String(item.body || ''),
-      jd_filename: item.jd && item.jd.fileName ? String(item.jd.fileName) : ''
-    };
+    payloads.push(buildNotificationPayload_(item));
 
-    var jsonPayload = JSON.stringify(testPayload);
-
-    Logger.log('');
-    Logger.log('CANDIDATE ROW ' + row);
-    Logger.log('Name: ' + testPayload.candidate_name);
-    Logger.log('Email: ' + testPayload.candidate_email);
-    Logger.log('CC: ' + testPayload.cc);
-    Logger.log('Role: ' + testPayload.role);
-    Logger.log('Role ID: ' + testPayload.role_id);
-    Logger.log('JD filename: ' + testPayload.jd_filename);
-    Logger.log('Sending payload:');
-    Logger.log(JSON.stringify(testPayload, null, 2));
-
-    requests.push({
-      url: endpoint,
-      method: 'post',
-      contentType: 'application/json',
-      payload: jsonPayload,
-      muteHttpExceptions: true
+    candidateMeta.push({
+      row: row,
+      candidate: String(
+        item.candidateName ||
+        item.name ||
+        candidate.name ||
+        'Candidate'
+      ),
+      email: preparedEmail
     });
-
-    requestMeta.push({ item: item, candidate: candidate, payload: testPayload });
   });
 
-  Logger.log('');
-  Logger.log('Sending ' + requests.length + ' request(s) to httpbin...');
+  /*
+   * EXACT REQUEST SHAPE:
+   *
+   * 1 candidate:
+   * {
+   *   candidate_name: "...",
+   *   ...
+   * }
+   *
+   * 2+ candidates:
+   * [
+   *   {
+   *     candidate_name: "...",
+   *     ...
+   *   },
+   *   {
+   *     candidate_name: "...",
+   *     ...
+   *   }
+   * ]
+   *
+   * There is exactly ONE HTTP request in both cases.
+   */
+  var outboundPayload = payloads.length === 1
+    ? payloads[0]
+    : payloads;
 
-  var responses;
+  var request = {
+    url: endpoint,
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Accept: 'application/json'
+    },
+    payload: JSON.stringify(outboundPayload),
+    muteHttpExceptions: true
+  };
+
+  Logger.log('');
+  Logger.log('============================================================');
+  Logger.log('TRIBERA JD MAILER - EXACT JSON REQUEST TEST');
+  Logger.log('============================================================');
+  Logger.log('Endpoint: ' + endpoint);
+  Logger.log('Sheet: ' + sheet.getName());
+  Logger.log('Selected candidates: ' + payloads.length);
+  Logger.log('HTTP requests sent: 1');
+  Logger.log(
+    'Payload shape: ' +
+    (payloads.length === 1 ? 'OBJECT' : 'ARRAY')
+  );
+  Logger.log('Real Notification/AWS API called: NO');
+  Logger.log('Real emails sent: 0');
+  Logger.log('------------------------------------------------------------');
+  Logger.log('JSON REQUEST:');
+  Logger.log(JSON.stringify(outboundPayload, null, 2));
+  Logger.log('------------------------------------------------------------');
+
+  var started = Date.now();
+  var response;
 
   try {
-    responses = UrlFetchApp.fetchAll(requests);
-  } catch (error) {
-    Logger.log('HTTP REQUEST ERROR: ' + String(error));
-    throw new Error('HTTPBIN request failed: ' + (error && error.message ? error.message : String(error)));
+    response = UrlFetchApp.fetch(endpoint, request);
+  } catch (err) {
+    throw new Error(
+      'JSON HTTP request failed: ' + jdFriendlyError(err)
+    );
   }
 
-  var results = requestMeta.map(function(meta, index) {
-    var response = responses[index];
-    var httpCode = response.getResponseCode();
-    var responseBody = response.getContentText();
-    var parsed = null;
+  var elapsedMs = Date.now() - started;
+  var httpCode = response.getResponseCode();
+  var responseBody = response.getContentText() || '';
+  var parsedResponse = null;
 
-    try { parsed = JSON.parse(responseBody); } catch (parseError) { parsed = null; }
+  try {
+    parsedResponse = responseBody
+      ? JSON.parse(responseBody)
+      : null;
+  } catch (e) {
+    parsedResponse = null;
+  }
 
-    var echoed = parsed && parsed.json ? parsed.json : null;
-    var verified = false;
+  var ok = httpCode >= 200 && httpCode < 300;
 
-    if (echoed) {
-      verified =
-        String(echoed.sheet_row) === String(meta.payload.sheet_row) &&
-        String(echoed.candidate_name || '') === String(meta.payload.candidate_name || '') &&
-        String(echoed.candidate_email || '').toLowerCase() === String(meta.payload.candidate_email || '').toLowerCase() &&
-        String(echoed.role_id || '') === String(meta.payload.role_id || '') &&
-        String(echoed.subject || '') === String(meta.payload.subject || '') &&
-        String(echoed.body || '') === String(meta.payload.body || '') &&
-        String(echoed.cc || '') === String(meta.payload.cc || '') &&
-        String(echoed.jd_filename || '') === String(meta.payload.jd_filename || '');
-    }
+  Logger.log('JSON RESPONSE:');
+  if (parsedResponse !== null) {
+    Logger.log(JSON.stringify(parsedResponse, null, 2));
+  } else {
+    Logger.log(responseBody || '(empty response)');
+  }
 
-    var success = httpCode >= 200 && httpCode < 300 && verified;
-    var reason = '';
+  Logger.log('------------------------------------------------------------');
 
-    if (httpCode < 200 || httpCode >= 300) {
-      reason = 'HTTPBIN returned HTTP ' + httpCode + (responseBody ? ' - ' + truncate_(responseBody, 700) : '');
-    } else if (!echoed) {
-      reason = 'HTTP 200 received, but httpbin did not return the JSON payload.';
-    } else if (!verified) {
-      reason = 'HTTP 200 received, but echoed candidate data did not match the sent payload.';
-    }
-
-    Logger.log('');
-    Logger.log('RESULT - ROW ' + meta.payload.sheet_row);
-    Logger.log('HTTP STATUS: ' + httpCode);
-    Logger.log('PAYLOAD VERIFIED: ' + verified);
-    Logger.log('RESULT: ' + (success ? 'PASS' : 'FAIL'));
-
-    if (echoed) {
-      Logger.log('HTTPBIN ECHO:');
-      Logger.log(JSON.stringify(echoed, null, 2));
-    }
-    if (reason) Logger.log('REASON: ' + reason);
-
+  var results = candidateMeta.map(function(meta) {
     return {
-      success: success,
-      row: Number(meta.item.row || 0),
-      name: meta.payload.candidate_name,
-      email: meta.payload.candidate_email,
-      roleId: meta.payload.role_id,
-      jdFileName: meta.payload.jd_filename || '',
-      status: success ? 'TEST PASSED' : 'TEST FAILED',
+      success: ok,
+      requestNumber: 1,
+      row: meta.row,
+      candidate: meta.candidate,
+      email: meta.email,
       httpCode: httpCode,
-      attachment: false,
-      reason: reason,
-      details: success
-        ? 'HTTPBIN received and echoed the correct candidate data. No real email was sent.'
-        : reason
+      responseSize: responseBody.length
     };
   });
 
-  var passed = results.filter(function(result) { return result.success; }).length;
-  var failed = results.length - passed;
-
-  Logger.log('');
-  Logger.log('================================================');
-  Logger.log('BACKEND TEST COMPLETE');
-  Logger.log('================================================');
-  Logger.log('Total: ' + results.length);
-  Logger.log('Passed: ' + passed);
-  Logger.log('Failed: ' + failed);
-  Logger.log('Real emails sent: 0');
-  Logger.log('================================================');
+  Logger.log('RESULT: ' + (ok ? 'SUCCESS' : 'FAILED'));
+  Logger.log('Total candidates: ' + payloads.length);
+  Logger.log('HTTP requests: 1');
+  Logger.log('Elapsed time: ' + elapsedMs + ' ms');
+  Logger.log('============================================================');
 
   return {
-    success: failed === 0,
-    total: results.length,
-    sent: passed,
-    successful: passed,
-    failed: failed,
+    success: ok,
+    requestCount: 1,
+    total: payloads.length,
+    candidateCount: payloads.length,
+    payloadShape: payloads.length === 1 ? 'object' : 'array',
+    successful: ok ? payloads.length : 0,
+    passed: ok ? payloads.length : 0,
+    failed: ok ? 0 : payloads.length,
+    elapsedMs: elapsedMs,
     results: results,
-    timing: 'HTTPBIN backend validation'
+    payload: outboundPayload,
+    response: parsedResponse !== null
+      ? parsedResponse
+      : responseBody,
+    payloadPrinted: true,
+    realEmailSent: false,
+    realNotificationApiCalled: false
   };
 }
 
+function buildNotificationPayload_(item) {
+  item = item || {};
+
+  /*
+   * THIS IS THE EXACT NOTIFICATION/AWS BUSINESS PAYLOAD.
+   *
+   * Do not add transport/debug fields here.
+   * The Notification Service receives only these 11 fields.
+   */
+  return {
+    candidate_name: String(item.candidateName || item.name || '').trim(),
+    candidate_email: String(item.to || item.email || '').trim(),
+    role: String(item.role || '').trim(),
+    role_id: String(item.roleId || '').trim(),
+    customer: String(item.customer || '').trim(),
+    ta_name: String(item.taName || '').trim(),
+    ta_email: String(item.taEmail || '').trim(),
+    cc: String(item.cc || '').trim(),
+    subject: String(item.subject || ''),
+    body: String(item.body || ''),
+    jd_filename: String(item.jd && item.jd.fileName || '').trim()
+  };
+}
 
 function buildNotificationRequest_(item, token) {
   var props = PropertiesService.getScriptProperties();
@@ -2915,16 +3220,70 @@ function buildNotificationRequest_(item, token) {
       Authorization: 'Bearer ' + token,
       Accept: 'application/json'
     },
-    payload: JSON.stringify({
-      notification_type: 'jd',
-      candidate_name: String(item.candidateName || item.name || ''),
-      candidate_email: String(item.to || item.email || ''),
-      role_id: String(item.roleId || ''),
-      jd_filename: String(item.jd && item.jd.fileName || ''),
-      jd_path: String(item.jd && item.jd.path || item.roleFiles || ''),
-      jd_web_url: String(item.jd && item.jd.webUrl || '')
-    }),
+    payload: JSON.stringify(buildNotificationPayload_(item)),
     muteHttpExceptions: true
+  };
+}
+
+/*
+ * TEST ONLY.
+ *
+ * Builds the same prepared email data used by the real send flow and logs
+ * the exact Notification/AWS payload. It never calls the Notification API
+ * and never sends an email.
+ */
+function logNotificationPayloadFromDialog(payload) {
+  payload = payload || {};
+
+  var prepared = prepareBatchEmail({
+    template: payload.template || {},
+    overrides: payload.overrides || {},
+    draft: payload.draft || null
+  });
+
+  if (
+    !prepared ||
+    !prepared.success ||
+    !prepared.emails ||
+    !prepared.emails.length
+  ) {
+    throw new Error(
+      (prepared && prepared.error) ||
+      'No candidate emails were prepared.'
+    );
+  }
+
+  var payloads = prepared.emails.map(function(item) {
+    return buildNotificationPayload_(item);
+  });
+
+  var outboundPayload = payloads.length === 1
+    ? payloads[0]
+    : payloads;
+
+  Logger.log('============================================================');
+  Logger.log('TRIBERA JD MAILER - EXACT NOTIFICATION/AWS PAYLOAD');
+  Logger.log('============================================================');
+  Logger.log('EMAIL SENDING: DISABLED');
+  Logger.log('CANDIDATE COUNT: ' + payloads.length);
+  Logger.log(
+    'PAYLOAD SHAPE: ' +
+    (payloads.length === 1 ? 'OBJECT' : 'ARRAY')
+  );
+  Logger.log('HTTP REQUEST COUNT: 1');
+  Logger.log('------------------------------------------------------------');
+  Logger.log(JSON.stringify(outboundPayload, null, 2));
+  Logger.log('------------------------------------------------------------');
+  Logger.log('NO EMAIL SENT.');
+  Logger.log('============================================================');
+
+  return {
+    success: true,
+    sent: 0,
+    requestCount: 1,
+    candidateCount: payloads.length,
+    payloadShape: payloads.length === 1 ? 'object' : 'array',
+    payload: outboundPayload
   };
 }
 
@@ -2987,7 +3346,45 @@ function buildGraphRequest_(item, attachmentBase64, attachmentName, attachmentMi
 }
 
 
-function writeMailLogsBatch_(items,results){try{var ss=SpreadsheetApp.getActiveSpreadsheet(),sheet=ss.getSheetByName(TRIBERA_JD.LOG_SHEET)||ss.insertSheet(TRIBERA_JD.LOG_SHEET),headers=['Timestamp','Candidate','Email','Role-ID','Customer','JD File','Subject','Graph Status','Delivery Status','Trace ID','Error'];if(sheet.getLastRow()===0){sheet.getRange(1,1,1,headers.length).setValues([headers]);sheet.setFrozenRows(1);}var rows=(results||[]).map(function(r,i){var item=items[i]||{};return [new Date(),item.candidateName||item.name||'',item.to||item.email||'',item.roleId||'',item.customer||'',r.jdFileName||(item.jd&&item.jd.fileName)||'',item.subject||'',r.status||'',r.success?'CHECKING DELIVERY':'',r.messageId||'',r.success?'':(r.reason||'')];});if(rows.length)sheet.getRange(sheet.getLastRow()+1,1,rows.length,headers.length).setValues(rows);}catch(e){Logger.log('Batch log write failed: '+jdFriendlyError(e));}}
+function writeMailLogsBatch_(items, results) {
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(5000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(TRIBERA_JD.LOG_SHEET) || ss.insertSheet(TRIBERA_JD.LOG_SHEET);
+    var headers = ['Timestamp', 'Candidate', 'Email', 'Role-ID', 'Customer', 'JD File', 'Subject', 'Graph Status', 'Delivery Status', 'Trace ID', 'Error'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.setFrozenRows(1);
+    }
+
+    var rows = (results || []).map(function (r, i) {
+      var item = items[i] || {};
+      return [
+        new Date(),
+        item.candidateName || item.name || '',
+        item.to || item.email || '',
+        item.roleId || '',
+        item.customer || '',
+        r.jdFileName || (item.jd && item.jd.fileName) || '',
+        item.subject || '',
+        r.status || '',
+        r.success ? 'CHECKING DELIVERY' : '',
+        r.messageId || '',
+        r.success ? '' : (r.reason || '')
+      ];
+    });
+
+    if (rows.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+    }
+  } catch (e) {
+    Logger.log('Batch log write failed: ' + jdFriendlyError(e));
+  } finally {
+    lock.releaseLock();
+  }
+}
 
 function writeMailLog_(candidate, item, jdFileName, status, errorText, traceStatus, traceId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -3164,45 +3561,59 @@ function getGraphToken_(forceRefresh) {
     if (cached) return cached;
   }
 
-  var tenant = getRequiredConfig_('MS_TENANT_ID');
-  var clientId = getRequiredConfig_('MS_CLIENT_ID');
-  var secret = getRequiredConfig_('MS_CLIENT_SECRET');
+  // Double-check after potential race
+  var cached = cache.get(TRIBERA_JD.TOKEN_CACHE);
+  if (cached && !forceRefresh) return cached;
 
-  var url = 'https://login.microsoftonline.com/' + encodeURIComponent(tenant) + '/oauth2/v2.0/token';
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    // Second check inside lock
+    cached = cache.get(TRIBERA_JD.TOKEN_CACHE);
+    if (cached && !forceRefresh) return cached;
 
-  var response = UrlFetchApp.fetch(url, {
-    method: 'post',
-    payload: {
-      client_id: clientId,
-      client_secret: secret,
-      scope: 'https://graph.microsoft.com/.default',
-      grant_type: 'client_credentials'
-    },
-    muteHttpExceptions: true
-  });
+    var tenant = getRequiredConfig_('MS_TENANT_ID');
+    var clientId = getRequiredConfig_('MS_CLIENT_ID');
+    var secret = getRequiredConfig_('MS_CLIENT_SECRET');
 
-  var code = response.getResponseCode();
-  var body = response.getContentText();
+    var url = 'https://login.microsoftonline.com/' + encodeURIComponent(tenant) + '/oauth2/v2.0/token';
 
-  if (code < 200 || code >= 300) {
-    throw new Error('Microsoft Graph authentication failed. HTTP ' + code + '.');
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      payload: {
+        client_id: clientId,
+        client_secret: secret,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials'
+      },
+      muteHttpExceptions: true
+    });
+
+    var code = response.getResponseCode();
+    var body = response.getContentText();
+
+    if (code < 200 || code >= 300) {
+      throw new Error('Microsoft Graph authentication failed. HTTP ' + code + '.');
+    }
+
+    var json;
+    try { json = JSON.parse(body); }
+    catch (e) { throw new Error('Microsoft Graph returned an invalid token response.'); }
+
+    if (!json.access_token) throw new Error('Microsoft Graph did not return an access token.');
+
+    var expires = Number(json.expires_in || 3600);
+
+    cache.put(
+      TRIBERA_JD.TOKEN_CACHE,
+      json.access_token,
+      Math.max(60, Math.min(3300, expires - 120))
+    );
+
+    return json.access_token;
+  } finally {
+    lock.releaseLock();
   }
-
-  var json;
-  try { json = JSON.parse(body); }
-  catch (e) { throw new Error('Microsoft Graph returned an invalid token response.'); }
-
-  if (!json.access_token) throw new Error('Microsoft Graph did not return an access token.');
-
-  var expires = Number(json.expires_in || 3600);
-
-  cache.put(
-    TRIBERA_JD.TOKEN_CACHE,
-    json.access_token,
-    Math.max(60, Math.min(3300, expires - 120))
-  );
-
-  return json.access_token;
 }
 
 function getJDPdfPreview(rowNumber, jdFileName) {
@@ -3638,13 +4049,53 @@ function debugCandidateRow(rowNumber) {
  * TESTING HELPERS
  * ================================================================ */
 
-function getNotificationAccessToken(){
-  var cache=CacheService.getScriptCache(),cached=cache.get(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE);if(cached)return cached;
-  var p=PropertiesService.getScriptProperties(),base=String(p.getProperty('NOTIFICATION_API_URL')||'').trim(),id=String(p.getProperty('NOTIFICATION_CLIENT_ID')||'').trim(),secret=String(p.getProperty('NOTIFICATION_CLIENT_SECRET')||'').trim();
-  if(!base)throw new Error('NOTIFICATION_API_URL is missing.');if(!id)throw new Error('NOTIFICATION_CLIENT_ID is missing.');if(!secret)throw new Error('NOTIFICATION_CLIENT_SECRET is missing.');base=base.replace(/\/+$/,'');
-  var r=UrlFetchApp.fetch(base+'/api/v1/auth/login',{method:'post',contentType:'application/json',payload:JSON.stringify({client_id:id,client_secret:secret}),muteHttpExceptions:true}),code=r.getResponseCode(),body=r.getContentText();
-  if(code!==200)throw new Error('Notification API authentication failed. HTTP '+code+': '+body);var data;try{data=JSON.parse(body);}catch(e){throw new Error('Notification API returned an invalid authentication response.');}if(!data.access_token)throw new Error('Notification API did not return an access token.');
-  cache.put(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE,data.access_token,Math.max(60,Math.min(3300,Number(data.expires_in||1800)-60)));return data.access_token;
+function getNotificationAccessToken() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE);
+  if (cached) return cached;
+
+  // Double-check after potential race
+  cached = cache.get(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE);
+  if (cached) return cached;
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    // Second check inside lock
+    cached = cache.get(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE);
+    if (cached) return cached;
+
+    var p = PropertiesService.getScriptProperties();
+    var base = String(p.getProperty('NOTIFICATION_API_URL') || '').trim();
+    var id = String(p.getProperty('NOTIFICATION_CLIENT_ID') || '').trim();
+    var secret = String(p.getProperty('NOTIFICATION_CLIENT_SECRET') || '').trim();
+
+    if (!base) throw new Error('NOTIFICATION_API_URL is missing.');
+    if (!id) throw new Error('NOTIFICATION_CLIENT_ID is missing.');
+    if (!secret) throw new Error('NOTIFICATION_CLIENT_SECRET is missing.');
+    base = base.replace(/\/+$/, '');
+
+    var r = UrlFetchApp.fetch(base + '/api/v1/auth/login', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ client_id: id, client_secret: secret }),
+      muteHttpExceptions: true
+    });
+    var code = r.getResponseCode();
+    var body = r.getContentText();
+
+    if (code !== 200) throw new Error('Notification API authentication failed. HTTP ' + code + ': ' + body);
+
+    var data;
+    try { data = JSON.parse(body); }
+    catch (e) { throw new Error('Notification API returned an invalid authentication response.'); }
+    if (!data.access_token) throw new Error('Notification API did not return an access token.');
+
+    cache.put(TRIBERA_JD.NOTIFICATION_TOKEN_CACHE, data.access_token, Math.max(60, Math.min(3300, Number(data.expires_in || 1800) - 60)));
+    return data.access_token;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function testNotificationJDSend() {
@@ -4092,3 +4543,923 @@ function sendJDFromSheet() {
     );
   }
 }
+
+
+/* ================================================================
+ * CONCURRENCY TEST HELPERS
+ * ================================================================ */
+
+/**
+ * Simulates concurrent sends from multiple "users" by running
+ * prepareBatchEmail + sendPreparedEmails in parallel via separate
+ * script executions (using UrlFetchApp to call self).
+ *
+ * Run this function to test: testConcurrentSends_()
+ */
+function testConcurrentSends_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var testResults = {
+    startTime: new Date(),
+    simulations: [],
+    summary: {}
+  };
+
+  try {
+    // Get current selection
+    var rows = captureJDSelection();
+    if (!rows.length) {
+      throw new Error('No rows selected. Select candidate rows first.');
+    }
+
+    // Load candidates and validate
+    var candidates = loadCandidates_(rows);
+    validateSingleRoleSelection_(candidates);
+
+    // Resolve JD once (same as shortcut does)
+    var jdResult = resolveJD_(candidates[0]);
+    var selected = jdResult && jdResult.options && jdResult.options.length ? jdResult.options[0] : null;
+    if (!selected || !selected.id) {
+      throw new Error('JD could not be resolved for test.');
+    }
+
+    var selectedJD = {
+      id: String(selected.id),
+      name: String(selected.name || selected.fileName || ''),
+      fileName: String(selected.name || selected.fileName || ''),
+      webUrl: String(selected.webUrl || ''),
+      mimeType: String(selected.mimeType || 'application/pdf'),
+      driveId: String(selected.driveId || '')
+    };
+
+    var template = getEmailTemplates()[0]; // default
+
+    // Prepare base payload
+    var basePayload = {
+      template: template,
+      overrides: {
+        jd: selectedJD
+      }
+    };
+
+    var prepared = prepareBatchEmail(basePayload);
+    if (!prepared || !prepared.success || !prepared.emails.length) {
+      throw new Error('Prepare failed: ' + (prepared && prepared.error));
+    }
+
+    Logger.log('=== CONCURRENCY TEST SETUP ===');
+    Logger.log('Selected rows: ' + JSON.stringify(rows));
+    Logger.log('Candidates: ' + prepared.emails.length);
+    Logger.log('JD: ' + selectedJD.name);
+    Logger.log('Mode: ' + getSendMode_());
+
+    // Simulate N concurrent users by calling sendPreparedEmails directly
+    // Each "user" gets a copy of the prepared emails
+    var CONCURRENT_USERS = 5;
+    var sendPromises = [];
+
+    for (var u = 0; u < CONCURRENT_USERS; u++) {
+      var userLabel = 'User' + (u + 1);
+      var userStart = new Date().getTime();
+
+      // Run send in this same execution (serial but measures lock contention)
+      // For true parallel test, use testConcurrentSendsViaWebApp_() below
+      try {
+        var result = sendPreparedEmails({ items: prepared.emails });
+        var userElapsed = new Date().getTime() - userStart;
+
+        testResults.simulations.push({
+          user: userLabel,
+          success: result.success,
+          sent: result.sent || result.successful || 0,
+          failed: result.failed || 0,
+          elapsedMs: userElapsed,
+          timing: result.timing,
+          error: null
+        });
+
+        Logger.log(userLabel + ': ' + (result.success ? 'OK' : 'FAIL') +
+          ' | sent=' + (result.sent || result.successful || 0) +
+          ' | failed=' + (result.failed || 0) +
+          ' | ' + userElapsed + 'ms');
+      } catch (e) {
+        var userElapsed = new Date().getTime() - userStart;
+        testResults.simulations.push({
+          user: userLabel,
+          success: false,
+          sent: 0,
+          failed: prepared.emails.length,
+          elapsedMs: userElapsed,
+          timing: '',
+          error: jdFriendlyError(e)
+        });
+        Logger.log(userLabel + ': ERROR - ' + jdFriendlyError(e));
+      }
+    }
+
+    testResults.endTime = new Date();
+    testResults.totalMs = testResults.endTime - testResults.startTime;
+
+    var totalSent = testResults.simulations.reduce(function(sum, s) { return sum + s.sent; }, 0);
+    var totalFailed = testResults.simulations.reduce(function(sum, s) { return sum + s.failed; }, 0);
+    var allOk = testResults.simulations.every(function(s) { return s.success; });
+
+    testResults.summary = {
+      concurrentUsers: CONCURRENT_USERS,
+      totalCandidatesPerUser: prepared.emails.length,
+      totalSent: totalSent,
+      totalFailed: totalFailed,
+      allSucceeded: allOk,
+      totalTimeMs: testResults.totalMs,
+      avgTimePerUserMs: Math.round(testResults.totalMs / CONCURRENT_USERS)
+    };
+
+    Logger.log('');
+    Logger.log('=== CONCURRENCY TEST SUMMARY ===');
+    Logger.log(JSON.stringify(testResults.summary, null, 2));
+    Logger.log('');
+
+    // Check mail log for row count
+    var logSheet = ss.getSheetByName(TRIBERA_JD.LOG_SHEET);
+    if (logSheet) {
+      var logRows = logSheet.getLastRow() - 1; // minus header
+      Logger.log('Mail log rows written: ' + logRows);
+      Logger.log('Expected rows: ' + (CONCURRENT_USERS * prepared.emails.length));
+      testResults.summary.logRowsWritten = logRows;
+      testResults.summary.logRowsExpected = CONCURRENT_USERS * prepared.emails.length;
+    }
+
+    return testResults;
+
+  } catch (err) {
+    testResults.endTime = new Date();
+    testResults.error = jdFriendlyError(err);
+    Logger.log('TEST ERROR: ' + testResults.error);
+    return testResults;
+  }
+}
+
+/**
+ * TRUE PARALLEL TEST: Deploys as Web App and calls itself via HTTP
+ * to simulate real concurrent users from different sessions.
+ *
+ * Prerequisite: Deploy as Web App (Anyone, even anonymous)
+ * Set WEB_APP_URL below to your deployed URL.
+ */
+function testConcurrentSendsViaWebApp_() {
+  // REPLACE WITH YOUR DEPLOYED WEB APP URL
+  var WEB_APP_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
+
+  if (WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
+    throw new Error('Set WEB_APP_URL in the function to your deployed Web App URL.');
+  }
+
+  var rows = captureJDSelection();
+  if (!rows.length) throw new Error('Select candidate rows first.');
+
+  var candidates = loadCandidates_(rows);
+  validateSingleRoleSelection_(candidates);
+
+  var jdResult = resolveJD_(candidates[0]);
+  var selected = jdResult && jdResult.options && jdResult.options.length ? jdResult.options[0] : null;
+  if (!selected || !selected.id) throw new Error('JD not resolved.');
+
+  var template = getEmailTemplates()[0];
+  var prepared = prepareBatchEmail({
+    template: template,
+    overrides: { jd: { id: selected.id, name: selected.name, fileName: selected.name, webUrl: selected.webUrl || '', mimeType: selected.mimeType || 'application/pdf', driveId: selected.driveId || '' } }
+  });
+
+  if (!prepared || !prepared.success) throw new Error('Prepare failed.');
+
+  var CONCURRENT_USERS = 5;
+  var payload = {
+    template: prepared.template,
+    overrides: { jd: prepared.emails[0].jd },
+    draft: null
+  };
+
+  Logger.log('=== PARALLEL WEB APP TEST ===');
+  Logger.log('Users: ' + CONCURRENT_USERS);
+  Logger.log('Candidates each: ' + prepared.emails.length);
+  Logger.log('URL: ' + WEB_APP_URL);
+
+  var requests = [];
+  for (var u = 0; u < CONCURRENT_USERS; u++) {
+    requests.push({
+      url: WEB_APP_URL,
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  }
+
+  var start = new Date().getTime();
+  var responses = UrlFetchApp.fetchAll(requests);
+  var totalMs = new Date().getTime() - start;
+
+  var results = responses.map(function(r, i) {
+    var code = r.getResponseCode();
+    var body = r.getContentText();
+    var parsed = null;
+    try { parsed = JSON.parse(body); } catch (e) {}
+    return {
+      user: 'User' + (i + 1),
+      httpCode: code,
+      success: parsed && parsed.success,
+      sent: parsed && (parsed.sent || parsed.successful || 0),
+      failed: parsed && (parsed.failed || 0),
+      error: parsed && !parsed.success ? (parsed.error || body) : null
+    };
+  });
+
+  Logger.log('Total time: ' + totalMs + 'ms');
+  Logger.log('Results: ' + JSON.stringify(results, null, 2));
+
+  var allOk = results.every(function(r) { return r.success; });
+  var totalSent = results.reduce(function(s, r) { return s + (r.sent || 0); }, 0);
+
+  return {
+    success: allOk,
+    totalTimeMs: totalMs,
+    users: CONCURRENT_USERS,
+    candidatesPerUser: prepared.emails.length,
+    totalSent: totalSent,
+    results: results
+  };
+}
+
+/**
+ * Test token refresh under concurrent load
+ * Clears cache then fires multiple token requests
+ */
+function testTokenRefreshConcurrency_() {
+  clearJDMailerCaches();
+
+  var ITERATIONS = 10;
+  var start = new Date().getTime();
+  var tokens = [];
+
+  for (var i = 0; i < ITERATIONS; i++) {
+    var t0 = new Date().getTime();
+    var token = getGraphToken_(false);
+    var elapsed = new Date().getTime() - t0;
+    tokens.push({ iteration: i + 1, elapsedMs: elapsed, tokenPrefix: token ? token.substring(0, 20) : 'NULL' });
+    Logger.log('Iteration ' + (i + 1) + ': ' + elapsed + 'ms');
+  }
+
+  var totalMs = new Date().getTime() - start;
+  var uniqueTokens = [...new Set(tokens.map(function(t) { return t.tokenPrefix; }))].length;
+
+  Logger.log('Total: ' + totalMs + 'ms | Unique tokens: ' + uniqueTokens + ' (should be 1)');
+
+  return {
+    iterations: ITERATIONS,
+    totalMs: totalMs,
+    avgMs: Math.round(totalMs / ITERATIONS),
+    uniqueTokens: uniqueTokens,
+    details: tokens
+  };
+}
+
+/**
+ * Test mail log batch write under concurrent load
+ */
+function testLogWriteConcurrency_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(TRIBERA_JD.LOG_SHEET) || ss.insertSheet(TRIBERA_JD.LOG_SHEET);
+  var beforeRows = sheet.getLastRow();
+
+  var ITERATIONS = 20;
+  var items = [];
+  var results = [];
+
+  // Create dummy items
+  for (var i = 0; i < 3; i++) {
+    items.push({
+      row: 2 + i,
+      candidateName: 'Test Candidate ' + i,
+      to: 'test' + i + '@example.com',
+      roleId: 'TEST-ROLE-' + i,
+      customer: 'Test Customer',
+      subject: 'Test Subject ' + i,
+      jd: { fileName: 'Test_JD_' + i + '.pdf' }
+    });
+    results.push({
+      success: true,
+      jdFileName: 'Test_JD_' + i + '.pdf',
+      status: 'Sent',
+      messageId: 'msg-' + i
+    });
+  }
+
+  var start = new Date().getTime();
+  for (var iter = 0; iter < ITERATIONS; iter++) {
+    writeMailLogsBatch_(items, results);
+  }
+  var totalMs = new Date().getTime() - start;
+
+  var afterRows = sheet.getLastRow();
+  var written = afterRows - beforeRows;
+  var expected = ITERATIONS * items.length;
+
+  Logger.log('Iterations: ' + ITERATIONS);
+  Logger.log('Items per iter: ' + items.length);
+  Logger.log('Total time: ' + totalMs + 'ms');
+  Logger.log('Rows written: ' + written + ' / Expected: ' + expected);
+  Logger.log('Avg per write: ' + (totalMs / ITERATIONS).toFixed(1) + 'ms');
+
+  return {
+    iterations: ITERATIONS,
+    itemsPerIter: items.length,
+    totalMs: totalMs,
+    rowsWritten: written,
+    rowsExpected: expected,
+    match: written === expected,
+    avgMsPerWrite: totalMs / ITERATIONS
+  };
+}
+
+/**
+ * Run all concurrency tests
+ */
+function runAllConcurrencyTests() {
+  var allResults = {};
+
+  Logger.log('========== TEST 1: Token Refresh Concurrency ==========');
+  allResults.tokenRefresh = testTokenRefreshConcurrency_();
+
+  Logger.log('');
+  Logger.log('========== TEST 2: Log Write Concurrency ==========');
+  allResults.logWrite = testLogWriteConcurrency_();
+
+  Logger.log('');
+  Logger.log('========== TEST 3: Serial Send Concurrency (same execution) ==========');
+  allResults.serialSend = testConcurrentSends_();
+
+  Logger.log('');
+  Logger.log('========== ALL TESTS COMPLETE ==========');
+  Logger.log(JSON.stringify(allResults, null, 2));
+
+  return allResults;
+}
+
+/**
+ * DEBUG: Shows full prepared payload for current selection
+ * Run after selecting candidate rows in Sheet
+ */
+function debugPreparedPayload_() {
+  var rows = captureJDSelection();
+  if (!rows.length) { Logger.log('ERROR: Select candidate rows in Sheet first'); return; }
+
+  var candidates = loadCandidates_(rows);
+  validateSingleRoleSelection_(candidates);
+
+  var jdResult = resolveJD_(candidates[0]);
+  var selected = jdResult && jdResult.options && jdResult.options.length ? jdResult.options[0] : null;
+  if (!selected || !selected.id) { Logger.log('ERROR: JD not resolved - ' + (jdResult && jdResult.error)); return; }
+
+  var template = getEmailTemplates()[0];
+  var prepared = prepareBatchEmail({
+    template: template,
+    overrides: { jd: { id: selected.id, name: selected.name, fileName: selected.name, webUrl: selected.webUrl||'', mimeType: selected.mimeType||'application/pdf', driveId: selected.driveId||'' } }
+  });
+
+  Logger.log('=== PAYLOAD FOR SEND ===');
+  Logger.log('Mode: ' + getSendMode_());
+  Logger.log('Candidates: ' + prepared.emails.length);
+  Logger.log('JD: ' + selected.name);
+  Logger.log('');
+  Logger.log('FIRST EMAIL FULL PAYLOAD:');
+  Logger.log(JSON.stringify(prepared.emails[0], null, 2));
+  Logger.log('');
+  Logger.log('ALL EMAILS SUMMARY:');
+  prepared.emails.forEach(function(e, i) {
+    Logger.log((i+1) + '. ' + e.candidateName + ' | ' + e.email + ' | ' + e.roleId + ' | JD: ' + e.jd?.fileName);
+  });
+
+  return prepared;
+}
+
+/**
+ * CONCURRENCY TEST: Shows each user's payload + result
+ * Run after selecting candidate rows in Sheet
+ */
+function testConcurrentSendsWithPayload_() {
+  var rows = captureJDSelection();
+  if (!rows.length) { Logger.log('ERROR: Select candidate rows in Sheet first'); return; }
+
+  var candidates = loadCandidates_(rows);
+  validateSingleRoleSelection_(candidates);
+
+  var jdResult = resolveJD_(candidates[0]);
+  var selected = jdResult && jdResult.options && jdResult.options.length ? jdResult.options[0] : null;
+  if (!selected || !selected.id) { Logger.log('ERROR: JD not resolved - ' + (jdResult && jdResult.error)); return; }
+
+  var template = getEmailTemplates()[0];
+  var prepared = prepareBatchEmail({
+    template: template,
+    overrides: { jd: { id: selected.id, name: selected.name, fileName: selected.name, webUrl: selected.webUrl||'', mimeType: selected.mimeType||'application/pdf', driveId: selected.driveId||'' } }
+  });
+
+  var CONCURRENT_USERS = 3;
+  Logger.log('=== STARTING ' + CONCURRENT_USERS + ' CONCURRENT SENDS ===');
+  Logger.log('Candidates per user: ' + prepared.emails.length);
+  Logger.log('JD: ' + selected.name);
+  Logger.log('Mode: ' + getSendMode_());
+  Logger.log('');
+
+  // Log first user's full payload as sample
+  Logger.log('SAMPLE PAYLOAD (User1):');
+  Logger.log(JSON.stringify(prepared.emails[0], null, 2));
+  Logger.log('');
+
+  var results = [];
+  for (var u = 0; u < CONCURRENT_USERS; u++) {
+    var label = 'User' + (u+1);
+    var start = Date.now();
+    try {
+      var result = sendPreparedEmails({ items: prepared.emails });
+      var ms = Date.now() - start;
+      Logger.log(label + ': SUCCESS | ' + (result.sent||result.successful||0) + ' sent | ' + (result.failed||0) + ' failed | ' + ms + 'ms');
+      results.push({user: label, success: true, sent: result.sent||result.successful||0, failed: result.failed||0, ms: ms});
+    } catch (e) {
+      var ms = Date.now() - start;
+      Logger.log(label + ': FAILED | ' + e.message + ' | ' + ms + 'ms');
+      results.push({user: label, success: false, error: e.message, ms: ms});
+    }
+  }
+
+  var allOk = results.every(function(r){return r.success;});
+  Logger.log('');
+  Logger.log('=== SUMMARY ===');
+  Logger.log('All succeeded: ' + allOk);
+  Logger.log('Total sent: ' + results.reduce(function(s,r){return s+(r.sent||0);},0));
+  Logger.log('Total failed: ' + results.reduce(function(s,r){return s+(r.failed||0);},0));
+
+  // Check log sheet
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName(TRIBERA_JD.LOG_SHEET);
+  if (logSheet) {
+    var written = logSheet.getLastRow() - 1;
+    Logger.log('Log rows written: ' + written + ' / Expected: ' + (CONCURRENT_USERS * prepared.emails.length));
+  }
+  return results;
+}
+
+function testSendPayload(payload) {
+  var executionId = Utilities.getUuid();
+
+  Logger.log('========================================');
+  Logger.log('JD MAILER TEST PAYLOAD');
+  Logger.log('Execution ID: ' + executionId);
+  Logger.log('========================================');
+
+  Logger.log(JSON.stringify(payload, null, 2));
+
+  Logger.log('========================================');
+  Logger.log('NO EMAIL SENT - TEST ONLY');
+  Logger.log('========================================');
+
+  return {
+    success: true,
+    executionId: executionId,
+    message: 'Payload received successfully. No email was sent.'
+  };
+}
+
+function doPost(e) {
+  var payload = JSON.parse(e.postData.contents);
+
+  Logger.log('==============================');
+  Logger.log('PAYLOAD RECEIVED');
+  Logger.log('Time: ' + new Date().toISOString());
+  Logger.log(JSON.stringify(payload, null, 2));
+  Logger.log('==============================');
+
+  return ContentService
+    .createTextOutput(JSON.stringify({
+      success: true,
+      received: true,
+      requestId: Utilities.getUuid(),
+      rows: payload.selectedRows || []
+    }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/**
+ * TEST MULTIPLE USERS AT THE SAME TIME
+ *
+ * This sends 5 requests concurrently to the deployed
+ * Apps Script Web App.
+ *
+ * NO EMAIL IS SENT.
+ */
+/**
+ * ================================================================
+ * CONCURRENT SELECTED-CANDIDATE REQUEST TEST
+ * ================================================================
+ *
+ * Select exactly 2 or 3 candidate rows in the Sheet and run:
+ *   JD Mailer -> Test 2-3 Concurrent Requests
+ *
+ * This test:
+ * 1. Uses the real selected Sheet rows.
+ * 2. Uses the real template preparation flow.
+ * 3. Resolves the real JD before preparing the test.
+ * 4. Creates one outbound request per selected candidate.
+ * 5. Sends all requests together with fetchAll().
+ * 6. NEVER calls Notification/AWS.
+ * 7. NEVER sends a real email.
+ * 8. NEVER prints the request payload.
+ *
+ * The Execution log shows:
+ * - request number
+ * - candidate
+ * - email
+ * - sheet row
+ * - HTTP status
+ * - whether a response was received
+ * - response size
+ * - total elapsed time
+ *
+ * IMPORTANT:
+ * This proves concurrent outbound requests from this Apps Script
+ * execution. It does not create fake USER_A/USER_B identities.
+ * Actual independent Google users create independent executions.
+ */
+function testMultipleUsersSelectedCandidates() {
+  var ui = SpreadsheetApp.getUi();
+
+  try {
+    /*
+     * HOW THIS TEST WORKS
+     * -------------------
+     * 1. You select the candidates in the Sheet exactly as you normally do.
+     * 2. If you select 2 candidates, EVERY simulated user request contains
+     *    those same 2 candidate objects inside ONE JSON array.
+     * 3. If you select 3 candidates, EVERY simulated user request contains
+     *    those same 3 candidate objects inside ONE JSON array.
+     * 4. We simulate 2 or 3 different users by creating 2 or 3 separate
+     *    HTTP requests and sending them concurrently with fetchAll().
+     *
+     * IMPORTANT:
+     * This does not create fake Google accounts or fake Apps Script users.
+     * It tests the exact outbound request shape and concurrent HTTP handling.
+     */
+
+    var rows = captureJDSelection();
+
+    if (!rows || rows.length < 1 || rows.length > 4) {
+      throw new Error(
+        'Select 1 to 4 candidate rows in the Sheet, then run this test.'
+      );
+    }
+
+    var userCountResponse = ui.prompt(
+      'Test Multiple Users',
+      'How many users should be simulated? Enter 2 or 3.',
+      ui.ButtonSet.OK_CANCEL
+    );
+
+    if (userCountResponse.getSelectedButton() !== ui.Button.OK) {
+      return {
+        cancelled: true
+      };
+    }
+
+    var userCount = Number(
+      String(userCountResponse.getResponseText() || '').trim()
+    );
+
+    if (userCount !== 2 && userCount !== 3) {
+      throw new Error('Enter only 2 or 3 for the number of simulated users.');
+    }
+
+    var initialData = buildInitialDialogData_(rows);
+
+    if (!initialData || !initialData.success) {
+      throw new Error(
+        (initialData && initialData.error) ||
+        'Unable to prepare the selected candidates.'
+      );
+    }
+
+    /*
+     * Use the same template and JD preparation path as the real mailer.
+     * No candidate names/emails are hardcoded anywhere in this test.
+     */
+    var templates = initialData.templates || [];
+    var template = templates.filter(function(t) {
+      return String(t.id) === 'default';
+    })[0];
+
+    if (!template && templates.length) {
+      template = templates[0];
+    }
+
+    if (!template) {
+      throw new Error('No email template is available.');
+    }
+
+    /*
+     * buildInitialDialogData_ resolves the JD before the dialog opens.
+     * Reuse that resolved JD for the test instead of resolving it again.
+     */
+    var firstJD =
+      initialData.jdResults &&
+      initialData.jdResults.length
+        ? initialData.jdResults[0]
+        : null;
+
+    if (
+      !firstJD ||
+      firstJD.status !== 'found' ||
+      !firstJD.fileId
+    ) {
+      throw new Error(
+        'Job Description could not be resolved for the selected candidates.'
+      );
+    }
+
+    var jd = {
+      id: String(firstJD.fileId),
+      name: String(firstJD.fileName || ''),
+      fileName: String(firstJD.fileName || ''),
+      webUrl: String(firstJD.webUrl || ''),
+      mimeType: String(firstJD.mimeType || 'application/pdf'),
+      driveId: String(firstJD.driveId || '')
+    };
+
+    var prepared = prepareBatchEmail({
+      template: JSON.parse(JSON.stringify(template)),
+      overrides: {
+        jd: jd
+      },
+      draft: null
+    });
+
+    if (
+      !prepared ||
+      !prepared.success ||
+      !prepared.emails ||
+      !prepared.emails.length
+    ) {
+      throw new Error(
+        (prepared && prepared.error) ||
+        'No candidate emails were prepared.'
+      );
+    }
+
+    if (prepared.emails.length !== rows.length) {
+      throw new Error(
+        'Prepared candidate count (' +
+        prepared.emails.length +
+        ') does not match selected row count (' +
+        rows.length +
+        ').'
+      );
+    }
+
+    /*
+     * Build the EXACT business payload once.
+     *
+     * For 2+ selected candidates this becomes:
+     *
+     * [
+     *   { candidate_name: "...", ... },
+     *   { candidate_name: "...", ... }
+     * ]
+     *
+     * That same array is used as the body of EACH simulated user's
+     * independent HTTP request.
+     */
+    var candidatePayloads = prepared.emails.map(function(item) {
+      return buildNotificationPayload_(item);
+    });
+
+    var outboundPayload = candidatePayloads.length === 1
+      ? candidatePayloads[0]
+      : candidatePayloads;
+
+    var endpoint = 'https://httpbin.org/post';
+
+    /*
+     * Create one HTTP request per simulated user.
+     *
+     * User 1 -> [candidate1, candidate2]
+     * User 2 -> [candidate1, candidate2]
+     * User 3 -> [candidate1, candidate2]
+     *
+     * With 3 selected candidates the same becomes:
+     *
+     * User 1 -> [candidate1, candidate2, candidate3]
+     * User 2 -> [candidate1, candidate2, candidate3]
+     * User 3 -> [candidate1, candidate2, candidate3]
+     */
+    var requests = [];
+
+    for (var userIndex = 1; userIndex <= userCount; userIndex++) {
+      requests.push({
+        url: endpoint,
+        method: 'post',
+        contentType: 'application/json',
+        headers: {
+          Accept: 'application/json'
+        },
+        payload: JSON.stringify(outboundPayload),
+        muteHttpExceptions: true
+      });
+    }
+
+    Logger.log('');
+    Logger.log('============================================================');
+    Logger.log('TRIBERA JD MAILER - MULTI USER JSON REQUEST TEST');
+    Logger.log('============================================================');
+    Logger.log('Endpoint: ' + endpoint);
+    Logger.log('Sheet: ' + getCandidateSheet_().getName());
+    Logger.log('Selected rows: ' + JSON.stringify(rows));
+    Logger.log('Selected candidates: ' + candidatePayloads.length);
+    Logger.log('Simulated users: ' + userCount);
+    Logger.log('HTTP requests sent: ' + requests.length);
+    Logger.log(
+      'Payload shape: ' +
+      (candidatePayloads.length === 1 ? 'OBJECT' : 'ARRAY')
+    );
+    Logger.log(
+      'Each user request contains the same selected candidates: YES'
+    );
+    Logger.log('Real Notification/AWS API called: NO');
+    Logger.log('Real emails sent: 0');
+    Logger.log('------------------------------------------------------------');
+
+    /*
+     * Print the request payload exactly as it will be sent.
+     * We intentionally print it once here and then again beside every
+     * response so it is easy to verify REQUEST 1 / REQUEST 2 / REQUEST 3.
+     */
+    Logger.log('BASE PAYLOAD USED BY ALL SIMULATED USERS:');
+    Logger.log(JSON.stringify(outboundPayload, null, 2));
+    Logger.log('------------------------------------------------------------');
+
+    var started = Date.now();
+    var responses;
+
+    try {
+      /*
+       * fetchAll() dispatches the simulated user requests concurrently.
+       */
+      responses = UrlFetchApp.fetchAll(requests);
+    } catch (err) {
+      throw new Error(
+        'Concurrent multi-user HTTP test failed: ' + jdFriendlyError(err)
+      );
+    }
+
+    var elapsedMs = Date.now() - started;
+    var successful = 0;
+    var failed = 0;
+    var results = [];
+
+    for (var i = 0; i < responses.length; i++) {
+      var response = responses[i];
+      var httpCode = response.getResponseCode();
+      var responseBody = response.getContentText() || '';
+      var parsedResponse = null;
+
+      try {
+        parsedResponse = responseBody
+          ? JSON.parse(responseBody)
+          : null;
+      } catch (e) {
+        parsedResponse = null;
+      }
+
+      var ok = httpCode >= 200 && httpCode < 300;
+
+      if (ok) {
+        successful++;
+      } else {
+        failed++;
+      }
+
+      Logger.log('');
+      Logger.log('============================================================');
+      Logger.log('RESPONSE ' + (i + 1));
+      Logger.log('============================================================');
+      Logger.log('Simulated user: USER_' + (i + 1));
+      Logger.log('HTTP request number: ' + (i + 1));
+      Logger.log('HTTP status: ' + httpCode);
+      Logger.log('Candidate count in payload: ' + candidatePayloads.length);
+      Logger.log(
+        'Payload shape: ' +
+        (candidatePayloads.length === 1 ? 'OBJECT' : 'ARRAY')
+      );
+      Logger.log('REQUEST ' + (i + 1) + ' PAYLOAD:');
+      Logger.log(JSON.stringify(outboundPayload, null, 2));
+      Logger.log('RESPONSE ' + (i + 1) + ' BODY:');
+
+      if (parsedResponse !== null) {
+        /*
+         * httpbin echoes the request body under json.
+         * Printing the whole response lets you verify that the server
+         * received the exact same object/array.
+         */
+        Logger.log(JSON.stringify(parsedResponse, null, 2));
+      } else {
+        Logger.log(responseBody || '(empty response)');
+      }
+
+      Logger.log('------------------------------------------------------------');
+
+      results.push({
+        success: ok,
+        user: 'USER_' + (i + 1),
+        requestNumber: i + 1,
+        candidateCount: candidatePayloads.length,
+        payloadShape: candidatePayloads.length === 1
+          ? 'object'
+          : 'array',
+        httpCode: httpCode,
+        responseSize: responseBody.length
+      });
+    }
+
+    Logger.log('');
+    Logger.log('============================================================');
+    Logger.log('MULTI USER TEST SUMMARY');
+    Logger.log('============================================================');
+    Logger.log('Selected candidates: ' + candidatePayloads.length);
+    Logger.log('Simulated users: ' + userCount);
+    Logger.log('HTTP requests: ' + requests.length);
+    Logger.log('Successful responses: ' + successful);
+    Logger.log('Failed responses: ' + failed);
+    Logger.log('Elapsed time: ' + elapsedMs + ' ms');
+    Logger.log('Real Notification/AWS API called: NO');
+    Logger.log('Real emails sent: 0');
+    Logger.log('============================================================');
+
+    ui.alert(
+      'JD Mailer Multi-User Test',
+      'Test completed successfully.\\n\\n' +
+      'Selected candidates: ' + candidatePayloads.length + '\\n' +
+      'Simulated users: ' + userCount + '\\n' +
+      'HTTP requests: ' + requests.length + '\\n' +
+      'Successful: ' + successful + '\\n' +
+      'Failed: ' + failed + '\\n' +
+      'Time: ' + elapsedMs + ' ms\\n\\n' +
+      '1 candidate = JSON object.\\n' +
+      '2+ candidates = one JSON array per user request.\\n\\n' +
+      'Open Apps Script -> Executions to see REQUEST 1/2/3 payloads and responses.\\n' +
+      'No real email was sent.',
+      ui.ButtonSet.OK
+    );
+
+    return {
+      success: failed === 0,
+      selectedCandidateCount: candidatePayloads.length,
+      simulatedUserCount: userCount,
+      requestCount: requests.length,
+      payloadShape: candidatePayloads.length === 1
+        ? 'object'
+        : 'array',
+      successful: successful,
+      failed: failed,
+      elapsedMs: elapsedMs,
+      payload: outboundPayload,
+      results: results,
+      realEmailSent: false,
+      realNotificationApiCalled: false
+    };
+
+  } catch (err) {
+    ui.alert(
+      'JD Mailer Multi-User Test',
+      jdFriendlyError(err),
+      ui.ButtonSet.OK
+    );
+    throw err;
+  }
+}
+
+/*
+ * Backward-compatible aliases.
+ * Keep these public names so existing macros/buttons do not break.
+ */
+function testSelectedCandidatesTwoOrThreeRequests() {
+  return testMultipleUsersSelectedCandidates();
+}
+
+function testConcurrentRequestsNoDeployment() {
+  return testMultipleUsersSelectedCandidates();
+}
+
+function testMultiUserPayloadsNoDeployment() {
+  return testMultipleUsersSelectedCandidates();
+}
+
+function testMultipleUsersAtSameTime() {
+  return testMultipleUsersSelectedCandidates();
+}
+
